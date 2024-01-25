@@ -138,38 +138,6 @@ const upload = multer({ storage: storage });
 //   });
 // });
 
-// app.post("/joinRegister", upload.single("pdfFile"), async (req, res) => {
-//   const password = "OFWGKTA02!";
-//   const roleStatus = "joinUser";
-//   const encryptedPassword = await bcrypt.hash(password, 10);
-//   console.log(encryptedPassword)
-
-//   let user = await UserModel.findOne({
-//     email: req.body.email,
-//     contacted: false,
-//   });
-//   if (user) {
-//     res.send({ message: "Email Already Exist!" });
-//     const roleStatus = "";
-//   } else {
-//     user = await new UserModel({
-//       ...req.body,
-//       role: roleStatus,
-//     }).save();
-
-//     // await welcomeJoinEmail(
-//     //   req.body.email,
-//     //   req.body.fname,
-//     //   req.body.selectedValues
-//     // );
-
-//     res.status(200).send({
-//       message: "Email sent, check your mail.",
-//       user: user,
-//     });
-//   }
-// });
-
 io.on("connection", (socket) => {
   socket.on("new_user", (data) => {
     socket.broadcast.emit("senduser_admin", data);
@@ -210,36 +178,109 @@ app.post("/applyRegister", upload.single("pdfFile"), async (req, res) => {
   }
 });
 
-app.post("/joinRegister", upload.single("pdfFile"), async (req, res) => {
-  const roleStatus = "joinUser";
+app.post("/joinRegister", upload.none(), async (req, res) => {
+  const roleStatus = "client";
+  const googleSignStatus = req.body.googleVerified;
 
   let user = await UserModel.findOne({
     email: req.body.email,
     contacted: false,
   });
+
+  console.log(req.body.googleVerified);
+
   if (user) {
     res.send({ message: "Email Already Exist!" });
-    const roleStatus = "";
   } else {
-    user = await new UserModel({
-      ...req.body,
-      role: roleStatus,
-    }).save();
+    if (googleSignStatus) {
+      user = await new UserModel({
+        ...req.body,
+        verified: true,
+        role: roleStatus,
+      }).save();
 
-    await welcomeJoinEmail(
-      req.body.email,
-      req.body.fname,
-      req.body.selectedValues
-    );
+      await welcomeJoinEmail(req.body.email, req.body.fname);
+    } else {
+      user = await new UserModel({
+        ...req.body,
+        role: roleStatus,
+      }).save();
 
-    res.status(200).send({
-      message: "Email sent, check your mail.",
-      user: user,
-    });
+      const userVerify = await new VerifyUserModel({
+        userId: user._id,
+        uniqueString: crypto.randomBytes(32).toString("hex"),
+      }).save();
+      const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+      await verifyEmail(req.body.email, urlVerify);
+
+      await welcomeJoinEmail(req.body.email, req.body.fname);
+
+      res.status(200).send({
+        message: "Email sent, check your mail.",
+        user: user,
+      });
+    }
   }
 });
 
 app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await UserModel.findOne({ email: email });
+
+  if (!user) {
+    return res.status(400).send({
+      message: `Email doesn't exist!`,
+    });
+  }
+  if (await bcrypt.compare(password, user.password)) {
+    if (!user.verified) {
+      const token = await VerifyUserModel.findOne({ userId: user._id });
+      if (!token) {
+        const userVerify = await new VerifyUserModel({
+          userId: user._id,
+          uniqueString: crypto.randomBytes(32).toString("hex"),
+        }).save();
+        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+        await verifyEmail(req.body.email, urlVerify);
+      }
+
+      return res.status(400).send({
+        message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
+      });
+    } else {
+      const token = jwt.sign(
+        { email: user.email, role: user.role, userID: user._id },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "1d",
+        }
+      );
+
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: true, // Set to true if your application is served over HTTPS
+        sameSite: "None",
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+
+      if (res.status(201)) {
+        return res.json({
+          status: "ok",
+          role: user.role,
+          token: token,
+        });
+      } else {
+        return res.json({ status: "error" });
+      }
+    }
+  }
+  return res.status(400).send({
+    message: `Invalid Password!`,
+  });
+});
+
+app.post("/googlelogin", async (req, res) => {
   const { email, password } = req.body;
 
   const user = await UserModel.findOne({ email: email });

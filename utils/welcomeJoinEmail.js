@@ -179,7 +179,7 @@ module.exports = async (email, fname, applied) => {
           <td style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
             
       <div style="font-size: 14px; line-height: 140%; text-align: left; word-wrap: break-word;">
-        <p style="line-height: 140%;">Thanks <strong>${fname}</strong> for joining the BeeHub Virtual Assistant Experience! We will update you soon If we find the best and talented candidate who will assist you on <strong>${applied}</strong> <br /><br />If you have any concern or feedback, don't hesitate to message us.<br /><span style="background-color: #f1c40f; line-height: 19.6px;">The BeeHub VA Team</span></p>
+        <p style="line-height: 140%;">Thanks <strong>${fname}</strong> for joining the BeeHub Virtual Assistant Experience! We will update you soon If we find the best and talented candidate who will assist you<br /><br />If you have any concern or feedback, don't hesitate to message us.<br /><span style="background-color: #f1c40f; line-height: 19.6px;">The BeeHub VA Team</span></p>
       </div>
     
           </td>

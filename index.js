@@ -178,77 +178,151 @@ app.post("/applyRegister", upload.single("pdfFile"), async (req, res) => {
   }
 });
 
-app.post("/joinRegister", upload.none(), async (req, res) => {
-  const roleStatus = "client";
+app.post("/register", upload.single("pdfFile"), async (req, res) => {
+  const roleStatus = req.body.roleStatus;
   const googleSignStatus = req.body.googleVerified;
+  const password = req.body.password;
+  const fileName = req.file.filename;
+
+  console.log(roleStatus);
 
   let user = await UserModel.findOne({
     email: req.body.email,
     contacted: false,
   });
 
-  console.log(req.body.googleVerified);
-
   if (user) {
     res.send({ message: "Email Already Exist!" });
+    fileName = null;
   } else {
-    if (googleSignStatus) {
-      user = await new UserModel({
-        ...req.body,
-        verified: true,
-        role: roleStatus,
-      }).save();
+    if (roleStatus === "client") {
+      if (googleSignStatus) {
+        user = await new UserModel({
+          ...req.body,
+          verified: true,
+          role: roleStatus,
+        }).save();
+  
+        // await welcomeJoinEmail(req.body.email, req.body.fname);
+  
+        const token = jwt.sign(
+          { email: user.email, role: user.role, userID: user._id },
+          process.env.JWT_SECRET,
+          {
+            expiresIn: "1d",
+          }
+        );
+  
+        res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "None",
+          maxAge: 24 * 60 * 60 * 1000,
+        });
+  
+        res.status(200).send({
+          message: "Email sent, check your mail.",
+          user: user,
+        });
+      } else {
+        const encryptedPassword = await bcrypt.hash(password, 10);
+  
+        user = await new UserModel({
+          ...req.body,
+          role: roleStatus,
+          password: encryptedPassword,
+        }).save();
+  
+        const userVerify = await new VerifyUserModel({
+          userId: user._id,
+          uniqueString: crypto.randomBytes(32).toString("hex"),
+        }).save();
+        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+        await verifyEmail(req.body.email, urlVerify);
+  
+        // await welcomeJoinEmail(req.body.email, req.body.fname);
+  
+        res.status(200).send({
+          message: "Email sent, check your mail.",
+          user: user,
+        });
+      }
+    } else{
 
-      await welcomeJoinEmail(req.body.email, req.body.fname);
-    } else {
-      user = await new UserModel({
-        ...req.body,
-        role: roleStatus,
-      }).save();
+      //VA REGISTER
+      
+      if (googleSignStatus) {
+        user = await new UserModel({
+          ...req.body,
+          pdfFile: fileName,
+          verified: true,
+          role: roleStatus,
+        }).save();
+  
+        // await welcomeEmail(req.body.email, req.body.fname);
+  
+        const token = jwt.sign(
+          { email: user.email, role: user.role, userID: user._id },
+          process.env.JWT_SECRET,
+          {
+            expiresIn: "1d",
+          }
+        );
+  
+        res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "None",
+          maxAge: 24 * 60 * 60 * 1000,
+        });
+  
+        res.status(200).send({
+          message: "Email sent, check your mail.",
+          user: user,
+        });
+      } else {
+        const encryptedPassword = await bcrypt.hash(password, 10);
+  
+        user = await new UserModel({
+          ...req.body,
+          role: roleStatus,
+          pdfFile: fileName,
+          password: encryptedPassword,
+        }).save();
+  
+        const userVerify = await new VerifyUserModel({
+          userId: user._id,
+          uniqueString: crypto.randomBytes(32).toString("hex"),
+        }).save();
+        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+        await verifyEmail(req.body.email, urlVerify);
+        // await welcomeEmail(
+        //   req.body.email,
+        //   req.body.fname,
+        //   req.body.selectedValues,
+        //   fileName
+        // );
 
-      const userVerify = await new VerifyUserModel({
-        userId: user._id,
-        uniqueString: crypto.randomBytes(32).toString("hex"),
-      }).save();
-      const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
-      await verifyEmail(req.body.email, urlVerify);
+        res.status(200).send({
+          message: "Email sent, check your mail.",
+          user: user,
+        });
+      }
 
-      await welcomeJoinEmail(req.body.email, req.body.fname);
-
-      res.status(200).send({
-        message: "Email sent, check your mail.",
-        user: user,
-      });
     }
   }
 });
 
 app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
+  const { email, password, googleSignStatus } = req.body;
   const user = await UserModel.findOne({ email: email });
 
   if (!user) {
     return res.status(400).send({
       message: `Email doesn't exist!`,
     });
-  }
-  if (await bcrypt.compare(password, user.password)) {
-    if (!user.verified) {
-      const token = await VerifyUserModel.findOne({ userId: user._id });
-      if (!token) {
-        const userVerify = await new VerifyUserModel({
-          userId: user._id,
-          uniqueString: crypto.randomBytes(32).toString("hex"),
-        }).save();
-        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
-        await verifyEmail(req.body.email, urlVerify);
-      }
-
-      return res.status(400).send({
-        message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
-      });
-    } else {
+  } else {
+    if (googleSignStatus) {
       const token = jwt.sign(
         { email: user.email, role: user.role, userID: user._id },
         process.env.JWT_SECRET,
@@ -259,7 +333,7 @@ app.post("/login", async (req, res) => {
 
       res.cookie("token", token, {
         httpOnly: true,
-        secure: true, // Set to true if your application is served over HTTPS
+        secure: true,
         sameSite: "None",
         maxAge: 24 * 60 * 60 * 1000,
       });
@@ -268,70 +342,60 @@ app.post("/login", async (req, res) => {
         return res.json({
           status: "ok",
           role: user.role,
-          token: token,
-        });
-      } else {
-        return res.json({ status: "error" });
-      }
-    }
-  }
-  return res.status(400).send({
-    message: `Invalid Password!`,
-  });
-});
-
-app.post("/googlelogin", async (req, res) => {
-  const { email, password } = req.body;
-
-  const user = await UserModel.findOne({ email: email });
-
-  if (!user) {
-    return res.status(400).send({
-      message: `Email doesn't exist!`,
-    });
-  }
-  if (await bcrypt.compare(password, user.password)) {
-    if (!user.verified) {
-      const token = await VerifyUserModel.findOne({ userId: user._id });
-      if (!token) {
-        const userVerify = await new VerifyUserModel({
           userId: user._id,
-          uniqueString: crypto.randomBytes(32).toString("hex"),
-        }).save();
-        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
-        await verifyEmail(req.body.email, urlVerify);
-      }
-
-      return res.status(400).send({
-        message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
-      });
-    } else {
-      const token = jwt.sign(
-        { email: user.email, role: user.role, userID: user._id },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "1d",
-        }
-      );
-
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: true, // Set to true if your application is served over HTTPS
-        sameSite: "None",
-        maxAge: 24 * 60 * 60 * 1000,
-      });
-
-      if (res.status(201)) {
-        return res.json({
-          status: "ok",
-          role: user.role,
+          userfname: user.fname,
+          userlname: user.lname,
           token: token,
         });
       } else {
         return res.json({ status: "error" });
       }
+    } else {
+      if (await bcrypt.compare(password, user.password)) {
+        if (!user.verified) {
+          const token = await VerifyUserModel.findOne({ userId: user._id });
+          if (!token) {
+            const userVerify = await new VerifyUserModel({
+              userId: user._id,
+              uniqueString: crypto.randomBytes(32).toString("hex"),
+            }).save();
+            const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+            await verifyEmail(req.body.email, urlVerify);
+          }
+
+          return res.status(400).send({
+            message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
+          });
+        } else {
+          const token = jwt.sign(
+            { email: user.email, role: user.role, userID: user._id },
+            process.env.JWT_SECRET,
+            {
+              expiresIn: "1d",
+            }
+          );
+
+          res.cookie("token", token, {
+            httpOnly: true,
+            secure: true, // Set to true if your application is served over HTTPS
+            sameSite: "None",
+            maxAge: 24 * 60 * 60 * 1000,
+          });
+
+          if (res.status(201)) {
+            return res.json({
+              status: "ok",
+              role: user.role,
+              token: token,
+            });
+          } else {
+            return res.json({ status: "error" });
+          }
+        }
+      }
     }
   }
+
   return res.status(400).send({
     message: `Invalid Password!`,
   });
@@ -339,7 +403,7 @@ app.post("/googlelogin", async (req, res) => {
 
 app.post("/logout", async (req, res) => {
   res.clearCookie("token", {
-    domain: "dape-beehub-va-api.onrender.com",
+    // domain: "dape-beehub-va-api.onrender.com",
     path: "/", // Path should match the original cookie setting
     secure: true, // Set to true if the cookie was set with the secure flag
     httpOnly: true,
@@ -392,7 +456,8 @@ app.post("/contactMessage", async (req, res) => {
 
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
-  const userId = await VerifyUserModel.findOne({ userId: req.params.id });
+  const linkId = req.params.id;
+  const userId = await VerifyUserModel.findOne({ userId: linkId });
 
   if (!userId) {
     res.send({
@@ -402,7 +467,6 @@ app.get("/verify/:id/:token", async (req, res) => {
     const token = await VerifyUserModel.findOne({
       uniqueString: req.params.token,
     });
-    res.send({ message: "Valid Link" });
 
     if (!token) {
       console.log("Invalid token");
@@ -412,6 +476,7 @@ app.get("/verify/:id/:token", async (req, res) => {
         { $set: { verified: true } }
       );
       await VerifyUserModel.findByIdAndRemove(token._id);
+      res.send({ message: "Valid Link" });
     }
   }
 });
@@ -430,6 +495,24 @@ app.get("/reset/:id/:token", async (req, res) => {
     } else {
       await VerifyUserModel.findByIdAndRemove(token._id);
     }
+  }
+});
+
+app.get("/profile-bh/:username/:id", async (req, res) => {
+  const userId = await UserModel.findOne({ _id: req.params.id });
+  if (!userId) {
+    res.json("Profile doesn't exist");
+  } else {
+    res.json(userId);
+  }
+});
+
+app.get("/va-bh/:username/:id", async (req, res) => {
+  const userId = await UserModel.findOne({ _id: req.params.id });
+  if (!userId) {
+    res.json("Profile doesn't exist");
+  } else {
+    res.json(userId);
   }
 });
 
@@ -523,7 +606,7 @@ const verifyApplyUser = (req, res, next) => {
       if (err) {
         return res.json("Error with token");
       } else {
-        if (decoded.role === "applyUser") {
+        if (decoded.role === "virtualassistant") {
           const user = await UserModel.findById(decoded.userID);
           req.user = user;
           next();
@@ -544,7 +627,7 @@ app.get("/applyuserdashboard", verifyApplyUser, (req, res) => {
   if (tokenVerify == "No token found") {
     res.json("User not found");
   } else {
-    if (user.role == "applyUser") {
+    if (user.role == "virtualassistant") {
       res.json(user);
     } else {
       res.json("User not found");
@@ -563,7 +646,7 @@ const verifyJoinUser = (req, res, next) => {
       if (err) {
         return res.json("Error with token");
       } else {
-        if (decoded.role === "joinUser") {
+        if (decoded.role === "client") {
           const user = await UserModel.findById(decoded.userID);
           req.user = user;
           next();
@@ -584,7 +667,7 @@ app.get("/joinuserdashboard", verifyJoinUser, (req, res) => {
   if (tokenVerify == "No token found") {
     res.json("User not found");
   } else {
-    if (user.role == "joinUser") {
+    if (user.role == "client") {
       res.json(user);
     } else {
       res.json("User not found");

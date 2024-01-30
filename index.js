@@ -182,13 +182,12 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
   const roleStatus = req.body.roleStatus;
   const googleSignStatus = req.body.googleVerified;
   const password = req.body.password;
-  const fileName = req.file.filename;
+
 
   console.log(roleStatus);
 
   let user = await UserModel.findOne({
     email: req.body.email,
-    contacted: false,
   });
 
   if (user) {
@@ -250,7 +249,7 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
     } else{
 
       //VA REGISTER
-      
+      const fileName = req.file.filename;
       if (googleSignStatus) {
         user = await new UserModel({
           ...req.body,

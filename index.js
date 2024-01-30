@@ -183,7 +183,6 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
   const googleSignStatus = req.body.googleVerified;
   const password = req.body.password;
 
-
   console.log(roleStatus);
 
   let user = await UserModel.findOne({
@@ -201,9 +200,9 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           verified: true,
           role: roleStatus,
         }).save();
-  
+
         // await welcomeJoinEmail(req.body.email, req.body.fname);
-  
+
         const token = jwt.sign(
           { email: user.email, role: user.role, userID: user._id },
           process.env.JWT_SECRET,
@@ -211,43 +210,42 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             expiresIn: "1d",
           }
         );
-  
+
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
           sameSite: "None",
           maxAge: 24 * 60 * 60 * 1000,
         });
-  
+
         res.status(200).send({
           message: "Email sent, check your mail.",
           user: user,
         });
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
-  
+
         user = await new UserModel({
           ...req.body,
           role: roleStatus,
           password: encryptedPassword,
         }).save();
-  
+
         const userVerify = await new VerifyUserModel({
           userId: user._id,
           uniqueString: crypto.randomBytes(32).toString("hex"),
         }).save();
         const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
         await verifyEmail(req.body.email, urlVerify);
-  
+
         // await welcomeJoinEmail(req.body.email, req.body.fname);
-  
+
         res.status(200).send({
           message: "Email sent, check your mail.",
           user: user,
         });
       }
-    } else{
-
+    } else {
       //VA REGISTER
       const fileName = req.file.filename;
       if (googleSignStatus) {
@@ -257,9 +255,9 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           verified: true,
           role: roleStatus,
         }).save();
-  
+
         // await welcomeEmail(req.body.email, req.body.fname);
-  
+
         const token = jwt.sign(
           { email: user.email, role: user.role, userID: user._id },
           process.env.JWT_SECRET,
@@ -267,28 +265,28 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             expiresIn: "1d",
           }
         );
-  
+
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
           sameSite: "None",
           maxAge: 24 * 60 * 60 * 1000,
         });
-  
+
         res.status(200).send({
           message: "Email sent, check your mail.",
           user: user,
         });
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
-  
+
         user = await new UserModel({
           ...req.body,
           role: roleStatus,
           pdfFile: fileName,
           password: encryptedPassword,
         }).save();
-  
+
         const userVerify = await new VerifyUserModel({
           userId: user._id,
           uniqueString: crypto.randomBytes(32).toString("hex"),
@@ -307,7 +305,6 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           user: user,
         });
       }
-
     }
   }
 });
@@ -498,7 +495,10 @@ app.get("/reset/:id/:token", async (req, res) => {
 });
 
 app.get("/profile-bh/:username/:id", async (req, res) => {
-  const userId = await UserModel.findOne({ _id: req.params.id });
+  const userId = await UserModel.findOne({
+    _id: req.params.id,
+    role: "client",
+  });
   if (!userId) {
     res.json("Profile doesn't exist");
   } else {
@@ -507,7 +507,10 @@ app.get("/profile-bh/:username/:id", async (req, res) => {
 });
 
 app.get("/va-bh/:username/:id", async (req, res) => {
-  const userId = await UserModel.findOne({ _id: req.params.id });
+  const userId = await UserModel.findOne({
+    _id: req.params.id,
+    role: "virtualassistant",
+  });
   if (!userId) {
     res.json("Profile doesn't exist");
   } else {

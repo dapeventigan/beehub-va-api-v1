@@ -547,7 +547,7 @@ const verifyLoginUser = (req, res, next) => {
 app.get("/verifylogin", verifyLoginUser, (req, res) => {
   const user = req.user;
   const tokenVerify = req.tokenkey;
-  if (tokenVerify == "No token found") {
+  if (tokenVerify === "No token found") {
     res.json("User not found");
   } else {
     res.json(user);
@@ -583,10 +583,10 @@ app.get("/admindashboard", verifyAdminUser, (req, res) => {
   const user = req.user;
   const tokenVerify = req.tokenkey;
 
-  if (tokenVerify == "No token found") {
+  if (tokenVerify === "No token found") {
     res.json("User not found");
   } else {
-    if (user.role == "admin") {
+    if (user.role === "admin") {
       res.json(user);
     } else {
       res.json("User not found");
@@ -623,10 +623,10 @@ app.get("/applyuserdashboard", verifyApplyUser, (req, res) => {
   const user = req.user;
   const tokenVerify = req.tokenkey;
 
-  if (tokenVerify == "No token found") {
+  if (tokenVerify === "No token found") {
     res.json("User not found");
   } else {
-    if (user.role == "virtualassistant") {
+    if (user.role === "virtualassistant") {
       res.json(user);
     } else {
       res.json("User not found");
@@ -663,10 +663,10 @@ app.get("/joinuserdashboard", verifyJoinUser, (req, res) => {
   const user = req.user;
   const tokenVerify = req.tokenkey;
 
-  if (tokenVerify == "No token found") {
+  if (tokenVerify === "No token found") {
     res.json("User not found");
   } else {
-    if (user.role == "client") {
+    if (user.role === "client") {
       res.json(user);
     } else {
       res.json("User not found");

@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "https://beehubvas.com",
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Content-Type,Authorization",
     credentials: true,
@@ -32,7 +32,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: "https://beehubvas.com",
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Content-Type,Authorization",
     credentials: true,
@@ -41,7 +41,7 @@ app.use(
 );
 
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:3000");
+  res.setHeader("Access-Control-Allow-Origin", "https://beehubvas.com");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -100,7 +100,7 @@ const upload = multer({ storage: storage });
 //     userId: user._id,
 //     uniqueString: crypto.randomBytes(32).toString("hex"),
 //   }).save();
-//   const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+//   const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
 //   await verifyEmail(req.body.email, urlVerify);
 
 //   res.status(200).send({
@@ -129,7 +129,7 @@ const upload = multer({ storage: storage });
 //     userId: user._id,
 //     uniqueString: crypto.randomBytes(32).toString("hex"),
 //   }).save();
-//   const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+//   const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
 //   await verifyEmail(req.body.email, urlVerify);
 
 //   res.status(200).send({
@@ -237,7 +237,7 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           userId: user._id,
           uniqueString: crypto.randomBytes(32).toString("hex"),
         }).save();
-        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+        const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
         await verifyEmail(req.body.email, urlVerify);
   
         // await welcomeJoinEmail(req.body.email, req.body.fname);
@@ -294,7 +294,7 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           userId: user._id,
           uniqueString: crypto.randomBytes(32).toString("hex"),
         }).save();
-        const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+        const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
         await verifyEmail(req.body.email, urlVerify);
         // await welcomeEmail(
         //   req.body.email,
@@ -359,7 +359,7 @@ app.post("/login", async (req, res) => {
               userId: user._id,
               uniqueString: crypto.randomBytes(32).toString("hex"),
             }).save();
-            const urlVerify = `http://localhost:3000/verify/${user._id}/${userVerify.uniqueString}`;
+            const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
             await verifyEmail(req.body.email, urlVerify);
           }
 
@@ -403,7 +403,7 @@ app.post("/login", async (req, res) => {
 
 app.post("/logout", async (req, res) => {
   res.clearCookie("token", {
-    // domain: "dape-beehub-va-api.onrender.com",
+    domain: "https://beehubvas.com",
     path: "/", // Path should match the original cookie setting
     secure: true, // Set to true if the cookie was set with the secure flag
     httpOnly: true,
@@ -422,7 +422,7 @@ app.post("/getEmail", async (req, res) => {
       userId: user._id,
       uniqueString: crypto.randomBytes(32).toString("hex"),
     }).save();
-    const urlVerify = `http://localhost:3000/reset/${user._id}/${userVerify.uniqueString}`;
+    const urlVerify = `https://beehubvas.com/reset/${user._id}/${userVerify.uniqueString}`;
     await resetPassword(req.body.email, urlVerify);
   } else {
     res.status(400).send({
@@ -722,6 +722,6 @@ app.get("/getArchiveUsers", async (req, res) => {
 
 app.get("/viewPDF", (req, res) => {
   const pdfFilename = req.query.filename;
-  const pdfUrl = `https://dape-beehub-va-api.onrender.com/resumes/${pdfFilename}`;
+  const pdfUrl = `https://https://beehubvas.com/resumes/${pdfFilename}`;
   res.status(200).send({ url: pdfUrl });
 });

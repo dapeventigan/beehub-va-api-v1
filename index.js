@@ -382,6 +382,9 @@ app.post("/login", async (req, res) => {
             return res.json({
               status: "ok",
               role: user.role,
+              userId: user._id,
+              userfname: user.fname,
+              userlname: user.lname,
               token: token,
             });
           } else {
@@ -494,6 +497,7 @@ app.get("/reset/:id/:token", async (req, res) => {
   }
 });
 
+//add tryctach
 app.get("/profile-bh/:username/:id", async (req, res) => {
   const userId = await UserModel.findOne({
     _id: req.params.id,

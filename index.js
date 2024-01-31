@@ -497,28 +497,35 @@ app.get("/reset/:id/:token", async (req, res) => {
   }
 });
 
-//add tryctach
 app.get("/profile-bh/:username/:id", async (req, res) => {
-  const userId = await UserModel.findOne({
-    _id: req.params.id,
-    role: "client",
-  });
-  if (!userId) {
-    res.json("Profile doesn't exist");
+  if (req.params.id.length < 24 || 24 < req.params.id.length ) {
+    res.json("Link Broken");
   } else {
-    res.json(userId);
+    const userId = await UserModel.findOne({
+      _id: req.params.id,
+      role: "client",
+    });
+    if (!userId) {
+      res.json("Profile doesn't exist");
+    } else {
+      res.json(userId);
+    }
   }
 });
 
 app.get("/va-bh/:username/:id", async (req, res) => {
-  const userId = await UserModel.findOne({
-    _id: req.params.id,
-    role: "virtualassistant",
-  });
-  if (!userId) {
-    res.json("Profile doesn't exist");
+  if (req.params.id.length < 24 || 24 < req.params.id.length ) {
+    res.json("Link Broken");
   } else {
-    res.json(userId);
+    const userId = await UserModel.findOne({
+      _id: req.params.id,
+      role: "virtualassistant",
+    });
+    if (!userId) {
+      res.json("Profile doesn't exist");
+    } else {
+      res.json(userId);
+    }
   }
 });
 

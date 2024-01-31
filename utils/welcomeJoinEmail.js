@@ -194,7 +194,7 @@ module.exports = async (email, fname, applied) => {
             
       <div style="font-size: 12px; line-height: 140%; text-align: left; word-wrap: break-word;">
         <p style="line-height: 140%;"><span style="color: #7e8c8d; line-height: 16.8px;">BeeHub Virtual Assistants Co. unlocks productivity and achieve more with our cutting-edge virtual assistant services, designed to streamline tasks and empower your success effortlessly. <br /><br />Learn more about BeeHub Virtual Assistants Co:</span></p>
-    <p style="line-height: 140%;"><span style="color: #7e8c8d; line-height: 16.8px;"><a href="http://localhost:3000/">http://localhost:3000/</a></span></p>
+    <p style="line-height: 140%;"><span style="color: #7e8c8d; line-height: 16.8px;"><a href="https://beehubvas.com/">https://beehubvas.com/</a></span></p>
       </div>
     
           </td>

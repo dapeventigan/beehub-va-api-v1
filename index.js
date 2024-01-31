@@ -252,7 +252,9 @@ app.post("/login", async (req, res) => {
         return res.json({ status: "error" });
       }
     } else {
-      if (!password) {
+
+      const googleAcount = await UserModel.findOne({email: email, googleVerified: true})
+      if (googleAcount) {
         return res.status(400).send({
           message: `The account was created using Google. Please login using Google Sign-In`,
         });

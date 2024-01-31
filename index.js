@@ -77,105 +77,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 //POST
-
-// app.post("/applyRegister", upload.single("pdfFile"), async (req, res) => {
-//   const fileName = req.file.filename;
-//   const password = req.body.password;
-//   const roleStatus = "applyUser";
-//   const encryptedPassword = await bcrypt.hash(password, 10);
-
-//   let user = await UserModel.findOne({ email: req.body.email });
-//   if (user) {
-//     return res.send("Email Already Exist!");
-//   }
-
-//   user = await new UserModel({
-//     ...req.body,
-//     pdfFile: fileName,
-//     role: roleStatus,
-//     password: encryptedPassword,
-//   }).save();
-
-//   const userVerify = await new VerifyUserModel({
-//     userId: user._id,
-//     uniqueString: crypto.randomBytes(32).toString("hex"),
-//   }).save();
-//   const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
-//   await verifyEmail(req.body.email, urlVerify);
-
-//   res.status(200).send({
-//     message: "Email sent, check your mail.",
-//     user: user,
-//   });
-// });
-
-// app.post("/joinRegister", upload.single("pdfFile"), async (req, res) => {
-//   const password = req.body.password;
-//   const roleStatus = "joinUser";
-//   const encryptedPassword = await bcrypt.hash(password, 10);
-
-//   let user = await UserModel.findOne({ email: req.body.email });
-//   if (user) {
-//     return res.send("Email Already Exist!");
-//   }
-
-//   user = await new UserModel({
-//     ...req.body,
-//     role: roleStatus,
-//     password: encryptedPassword,
-//   }).save();
-
-//   const userVerify = await new VerifyUserModel({
-//     userId: user._id,
-//     uniqueString: crypto.randomBytes(32).toString("hex"),
-//   }).save();
-//   const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
-//   await verifyEmail(req.body.email, urlVerify);
-
-//   res.status(200).send({
-//     message: "Email sent, check your mail.",
-//     user: user,
-//   });
-// });
-
 io.on("connection", (socket) => {
   socket.on("new_user", (data) => {
     socket.broadcast.emit("senduser_admin", data);
   });
-});
-
-app.post("/applyRegister", upload.single("pdfFile"), async (req, res) => {
-  const fileName = req.file.filename;
-  const roleStatus = "applyUser";
-
-  let user = await UserModel.findOne({
-    email: req.body.email,
-    contacted: false,
-  });
-
-  if (user) {
-    res.send({ message: "Email Already Exist!" });
-    const fileName = null;
-    const roleStatus = "";
-  } else {
-    user = await new UserModel({
-      ...req.body,
-      pdfFile: fileName,
-      role: roleStatus,
-    }).save();
-
-    await welcomeEmail(
-      req.body.email,
-      req.body.fname,
-      req.body.selectedValues,
-      fileName
-    );
-
-    res.status(200).send({
-      message: "Email sent, check your mail.",
-      user: user,
-    });
-  }
 });
 
 app.post("/register", upload.single("pdfFile"), async (req, res) => {
@@ -315,7 +220,7 @@ app.post("/login", async (req, res) => {
 
   if (!user) {
     return res.status(400).send({
-      message: `Email doesn't exist!`,
+      message: `Account doesn't exist!`,
     });
   } else {
     if (googleSignStatus) {
@@ -347,48 +252,54 @@ app.post("/login", async (req, res) => {
         return res.json({ status: "error" });
       }
     } else {
-      if (await bcrypt.compare(password, user.password)) {
-        if (!user.verified) {
-          const token = await VerifyUserModel.findOne({ userId: user._id });
-          if (!token) {
-            const userVerify = await new VerifyUserModel({
-              userId: user._id,
-              uniqueString: crypto.randomBytes(32).toString("hex"),
-            }).save();
-            const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
-            await verifyEmail(req.body.email, urlVerify);
-          }
-
-          return res.status(400).send({
-            message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
-          });
-        } else {
-          const token = jwt.sign(
-            { email: user.email, role: user.role, userID: user._id },
-            process.env.JWT_SECRET,
-            {
-              expiresIn: "1d",
+      if (!password) {
+        return res.status(400).send({
+          message: `The account was created using Google. Please login using Google Sign-In`,
+        });
+      } else {
+        if (await bcrypt.compare(password, user.password)) {
+          if (!user.verified) {
+            const token = await VerifyUserModel.findOne({ userId: user._id });
+            if (!token) {
+              const userVerify = await new VerifyUserModel({
+                userId: user._id,
+                uniqueString: crypto.randomBytes(32).toString("hex"),
+              }).save();
+              const urlVerify = `https://beehubvas.com/verify/${user._id}/${userVerify.uniqueString}`;
+              await verifyEmail(req.body.email, urlVerify);
             }
-          );
 
-          res.cookie("token", token, {
-            httpOnly: true,
-            secure: true, // Set to true if your application is served over HTTPS
-            sameSite: "None",
-            maxAge: 24 * 60 * 60 * 1000,
-          });
-
-          if (res.status(201)) {
-            return res.json({
-              status: "ok",
-              role: user.role,
-              userId: user._id,
-              userfname: user.fname,
-              userlname: user.lname,
-              token: token,
+            return res.status(400).send({
+              message: `An verification link was sent to ${req.body.email}. Please verify your account.`,
             });
           } else {
-            return res.json({ status: "error" });
+            const token = jwt.sign(
+              { email: user.email, role: user.role, userID: user._id },
+              process.env.JWT_SECRET,
+              {
+                expiresIn: "1d",
+              }
+            );
+
+            res.cookie("token", token, {
+              httpOnly: true,
+              secure: true, // Set to true if your application is served over HTTPS
+              sameSite: "None",
+              maxAge: 24 * 60 * 60 * 1000,
+            });
+
+            if (res.status(201)) {
+              return res.json({
+                status: "ok",
+                role: user.role,
+                userId: user._id,
+                userfname: user.fname,
+                userlname: user.lname,
+                token: token,
+              });
+            } else {
+              return res.json({ status: "error" });
+            }
           }
         }
       }
@@ -498,7 +409,7 @@ app.get("/reset/:id/:token", async (req, res) => {
 });
 
 app.get("/profile-bh/:username/:id", async (req, res) => {
-  if (req.params.id.length < 24 || 24 < req.params.id.length ) {
+  if (req.params.id.length < 24 || 24 < req.params.id.length) {
     res.json("Link Broken");
   } else {
     const userId = await UserModel.findOne({
@@ -514,7 +425,7 @@ app.get("/profile-bh/:username/:id", async (req, res) => {
 });
 
 app.get("/va-bh/:username/:id", async (req, res) => {
-  if (req.params.id.length < 24 || 24 < req.params.id.length ) {
+  if (req.params.id.length < 24 || 24 < req.params.id.length) {
     res.json("Link Broken");
   } else {
     const userId = await UserModel.findOne({

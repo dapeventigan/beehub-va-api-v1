@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser");
 const crypto = require("crypto");
 const path = require("path"); // Import the 'path' module
 const http = require("http");
+const fs = require("fs");
 const { Server } = require("socket.io");
 //utils
 const verifyEmail = require("./utils/verifyEmail");
@@ -48,6 +49,10 @@ app.use((req, res, next) => {
   next();
 });
 app.use("/resumes", express.static(path.join(__dirname, "resumes")));
+app.use(
+  "/profilepicture",
+  express.static(path.join(__dirname, "profilepicture"))
+);
 
 mongoose.connect(process.env.DB, {
   useNewUrlParser: true,
@@ -64,6 +69,8 @@ const VerifyUserModel = require("./models/verifyUserSchema");
 
 //MULTER
 const multer = require("multer");
+
+//resumes
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "./resumes");
@@ -73,7 +80,6 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + file.originalname);
   },
 });
-
 const upload = multer({ storage: storage });
 
 //POST
@@ -88,15 +94,12 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
   const googleSignStatus = req.body.googleVerified;
   const password = req.body.password;
 
-  console.log(roleStatus);
-
   let user = await UserModel.findOne({
     email: req.body.email,
   });
 
   if (user) {
     res.send({ message: "Email Already Exist!" });
-    fileName = null;
   } else {
     if (roleStatus === "client") {
       if (googleSignStatus) {
@@ -252,8 +255,10 @@ app.post("/login", async (req, res) => {
         return res.json({ status: "error" });
       }
     } else {
-
-      const googleAcount = await UserModel.findOne({email: email, googleVerified: true})
+      const googleAcount = await UserModel.findOne({
+        email: email,
+        googleVerified: true,
+      });
       if (googleAcount) {
         return res.status(400).send({
           message: `The account was created using Google. Please login using Google Sign-In`,
@@ -455,8 +460,8 @@ const verifyLoginUser = (req, res, next) => {
       } else {
         if (
           decoded.role === "admin" ||
-          decoded.role === "applyUser" ||
-          decoded.role === "joinUser"
+          decoded.role === "client" ||
+          decoded.role === "virtualassistant"
         ) {
           const user = await UserModel.findById(decoded.userID);
           req.user = user;
@@ -648,6 +653,49 @@ app.get("/getArchiveUsers", async (req, res) => {
 
 app.get("/viewPDF", (req, res) => {
   const pdfFilename = req.query.filename;
-  const pdfUrl = `https://https://beehubvas.com/resumes/${pdfFilename}`;
+  const pdfUrl = `https://server.beehubvas.com/resumes/${pdfFilename}`;
   res.status(200).send({ url: pdfUrl });
 });
+
+//PUT
+
+//profile picture
+
+const imgStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./profilepicture");
+  },
+  filename: function (req, file, cb) {
+    const uniqueDPname = Date.now();
+    cb(null, uniqueDPname + file.originalname);
+  },
+});
+
+const profilepic = multer({ storage: imgStorage });
+
+app.put(
+  "/editProfilePicture",
+  profilepic.single("profilePicture"),
+  async (req, res) => {
+    const profilepic = req.file.filename;
+    const userId = req.body.userId;
+
+    const imagefile = await UserModel.findById({ _id: userId });
+
+    const oldProfilePicPath = "./profilepicture/" + imagefile.profilePicture;
+
+    fs.unlink(oldProfilePicPath, async (err) => {
+      if (err) {
+        console.error("Error deleting file:", err);
+        return;
+      } else {
+        await UserModel.findByIdAndUpdate(
+          { _id: userId },
+          { profilePicture: profilepic }
+        );
+
+        res.json({valid: true});
+      }
+    });
+  }
+);

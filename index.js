@@ -83,9 +83,27 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 //POST
+
 io.on("connection", (socket) => {
+  console.log(`Socket connected: ${socket.id}`);
+  socket.on("authenticate", (token) => {
+    const userId = token;
+
+    socket.join(userId);
+
+    socket.on("refresh-all", (data) => {
+      if (data == userId) {
+        io.to(data).emit("refresh");
+      }
+    });
+  });
+
   socket.on("new_user", (data) => {
     socket.broadcast.emit("senduser_admin", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`Socket disconnected: ${socket.id}`);
   });
 });
 
@@ -318,7 +336,7 @@ app.post("/login", async (req, res) => {
   });
 });
 
-app.post("/logout", async (req, res) => {
+app.post("/logout", async (req, res, next) => {
   res.clearCookie("token", {
     domain: "https://beehubvas.com",
     path: "/", // Path should match the original cookie setting
@@ -708,3 +726,26 @@ app.put(
     }
   }
 );
+
+app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
+  const userID = req.body.userID;
+  const fileName = req.file ? req.file.filename : "";
+
+  if (fileName) {
+    const pdfFilename = await UserModel.findById({ _id: userID });
+    const oldPdfPath = "./resumes/" + pdfFilename.pdfFile;
+
+    fs.unlink(oldPdfPath, async (err) => {
+      if (err) {
+        console.error("Error deleting file:", err);
+        return res.status(500).json({ error: "Error deleting old file" });
+      }
+
+      await UserModel.findByIdAndUpdate({ _id: userID }, { pdfFile: fileName });
+      res.json({ valid: true });
+    });
+  }
+
+  await UserModel.findByIdAndUpdate({ _id: userID }, { ...req.body });
+  res.json({ valid: true });
+});

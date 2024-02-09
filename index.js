@@ -695,7 +695,7 @@ app.put(
   "/editProfilePicture",
   profilepic.single("profilePicture"),
   async (req, res) => {
-    const profilepic = req.file.filename;
+    const profilepic = req.file ? req.file.filename : "";
     const userId = req.body.userId;
 
     const imagefile = await UserModel.findById({ _id: userId });

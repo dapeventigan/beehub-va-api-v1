@@ -698,18 +698,11 @@ app.put(
     const profilepic = req.file ? req.file.filename : "";
     const userId = req.body.userId;
 
-  
-
     if (profilepic) {
       const imagefile = await UserModel.findById({ _id: userId });
       const oldProfilePicPath = "./profilepicture/" + imagefile.profilePicture;
 
-      fs.unlink(oldProfilePicPath, async (err) => {
-        if (err) {
-          console.error("Error deleting file:", err);
-          return res.status(500).json({ error: "Error deleting old file" });
-        }
-
+      fs.unlink(oldProfilePicPath, async () => {
         await UserModel.findByIdAndUpdate(
           { _id: userId },
           { profilePicture: profilepic }
@@ -736,14 +729,8 @@ app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
     const pdfFilename = await UserModel.findById({ _id: userID });
     const oldPdfPath = "./resumes/" + pdfFilename.pdfFile;
 
-    fs.unlink(oldPdfPath, async (err) => {
-      if (err) {
-        console.error("Error deleting file:", err);
-        return res.status(500).json({ error: "Error deleting old file" });
-      }
-
+    fs.unlink(oldPdfPath, async () => {
       await UserModel.findByIdAndUpdate({ _id: userID }, { pdfFile: fileName });
-      res.json({ valid: true });
     });
   }
 

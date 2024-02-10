@@ -698,9 +698,10 @@ app.put(
     const profilepic = req.file ? req.file.filename : "";
     const userId = req.body.userId;
 
-    const imagefile = await UserModel.findById({ _id: userId });
+  
 
-    if (imagefile && imagefile.profilePicture) {
+    if (profilepic) {
+      const imagefile = await UserModel.findById({ _id: userId });
       const oldProfilePicPath = "./profilepicture/" + imagefile.profilePicture;
 
       fs.unlink(oldProfilePicPath, async (err) => {

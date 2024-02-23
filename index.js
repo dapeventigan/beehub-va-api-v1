@@ -66,9 +66,11 @@ server.listen(port, () => {
 //MODELS
 const UserModel = require("./models/userSchema");
 const VerifyUserModel = require("./models/verifyUserSchema");
+const JobBoardModel = require("./models/jobBoards");
 
 //MULTER
 const multer = require("multer");
+const { log } = require("console");
 
 //resumes
 const storage = multer.diskStorage({
@@ -389,6 +391,36 @@ app.post("/contactMessage", async (req, res) => {
   await UserModel.updateOne({ _id: id }, { archive: true });
 });
 
+app.post("/addjob", upload.none(), async (req, res) => {
+  const userBio = req.body.companyOverview;
+  const userID = req.body.jobPostedById;
+  const skills = req.body.jobSkills.split(",");
+
+  try {
+    const user = await UserModel.findById({ _id: userID });
+    if (!user) {
+      res.status(200).send({ message: "User not found" });
+    } else {
+      const userPostedBy = user.fname + " " + user.lname;
+      await UserModel.updateOne({ _id: userID }, { bio: userBio });
+      await new JobBoardModel({
+        ...req.body,
+        jobPosted: new Date(),
+        jobPostedBy: userPostedBy,
+        jobPostedById: userID,
+        jobSkills: skills,
+        jobCompanyOverview: userBio,
+      }).save();
+    }
+  } catch (error) {
+    console.log(error);
+  }
+
+  res.status(200).send({
+    message: "Job added successfully",
+  });
+});
+
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
   const linkId = req.params.id;
@@ -417,40 +449,28 @@ app.get("/verify/:id/:token", async (req, res) => {
 });
 
 app.get("/reset/:id/:token", async (req, res) => {
-  const userId = await VerifyUserModel.findOne({ userId: req.params.id });
-  if (!userId) {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     res.send({ message: "nah" });
   } else {
-    const token = await VerifyUserModel.findOne({
-      uniqueString: req.params.token,
-    });
-    res.send({ message: "yeah" });
-    if (!token) {
-      console.log("Invalid token");
-    } else {
-      await VerifyUserModel.findByIdAndRemove(token._id);
-    }
-  }
-});
-
-app.get("/profile-bh/:username/:id", async (req, res) => {
-  if (req.params.id.length < 24 || 24 < req.params.id.length) {
-    res.json("Link Broken");
-  } else {
-    const userId = await UserModel.findOne({
-      _id: req.params.id,
-      role: "client",
-    });
+    const userId = await VerifyUserModel.findOne({ userId: req.params.id });
     if (!userId) {
-      res.json("Profile doesn't exist");
+      res.send({ message: "nah" });
     } else {
-      res.json(userId);
+      const token = await VerifyUserModel.findOne({
+        uniqueString: req.params.token,
+      });
+      res.send({ message: "yeah" });
+      if (!token) {
+        console.log("Invalid token");
+      } else {
+        await VerifyUserModel.findByIdAndRemove(token._id);
+      }
     }
   }
 });
 
 app.get("/va-bh/:username/:id", async (req, res) => {
-  if (req.params.id.length < 24 || 24 < req.params.id.length) {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     res.json("Link Broken");
   } else {
     const userId = await UserModel.findOne({
@@ -461,6 +481,19 @@ app.get("/va-bh/:username/:id", async (req, res) => {
       res.json("Profile doesn't exist");
     } else {
       res.json(userId);
+    }
+  }
+});
+
+app.get("/job-boards/bh/:id", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.json("Job doesn't exist");
+  } else {
+    const jobId = await JobBoardModel.findById({ _id: req.params.id });
+    if (!jobId) {
+      res.json("Job doesn't exist");
+    } else {
+      res.json(jobId);
     }
   }
 });
@@ -636,9 +669,10 @@ app.get("/getSpecificUser", async (req, res) => {
 });
 
 app.get("/getApplyUsers", async (req, res) => {
-  const userRole = "applyUser";
+  const userRole = "virtualassistant";
 
   await UserModel.find({ role: userRole, archive: false })
+    .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
     })
@@ -648,9 +682,10 @@ app.get("/getApplyUsers", async (req, res) => {
 });
 
 app.get("/getJoinUsers", async (req, res) => {
-  const userRole = "joinUser";
+  const userRole = "client";
 
   await UserModel.find({ role: userRole, archive: false })
+    .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
     })
@@ -675,6 +710,55 @@ app.get("/viewPDF", (req, res) => {
   res.status(200).send({ url: pdfUrl });
 });
 
+//JOB BOARDS
+
+app.get("/getJobData", async (req, res) => {
+  await JobBoardModel.find({ jobVerified: "Accepted" })
+    .sort({ _id: -1 })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getClientJobData", async (req, res) => {
+  await JobBoardModel.find({ jobPostedById: req.query.userID })
+    .sort({ _id: -1 })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getPendingJobData", async (req, res) => {
+  await JobBoardModel.find({ jobVerified: "Pending" })
+    .sort({ _id: -1 })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getAppliedJob", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.query.jobID)) {
+    res.json("User not found");
+  } else {
+    const userCheck = await JobBoardModel.find({
+      $and: [{ _id: req.query.jobID }, { usersApplied: req.query.userID }],
+    });
+    if (userCheck.length === 0) {
+      res.json("User not found");
+    } else {
+      res.json("User found");
+    }
+  }
+});
 //PUT
 
 //profile picture
@@ -736,4 +820,36 @@ app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
 
   await UserModel.findByIdAndUpdate({ _id: userID }, { ...req.body });
   res.json({ valid: true });
+});
+
+app.put("/verifyJobPost", upload.none(), async (req, res) => {
+  const jobID = req.body.jobID;
+  const skills = req.body.jobSkills.split(",");
+  await JobBoardModel.findByIdAndUpdate(
+    { _id: jobID },
+    {
+      ...req.body,
+      jobSkills: skills,
+      jobPosted: new Date(),
+      jobVerified: "Accepted",
+    }
+  );
+
+  res.json({ message: "Job posted successfully" });
+});
+
+app.put("/applyJob", async (req, res) => {
+  const jobID = req.body.jobID;
+  const userID = req.body.userID;
+
+  await JobBoardModel.findByIdAndUpdate(jobID, {
+    $push: { usersApplied: userID },
+  });
+});
+
+app.put("/declineJob", async (req, res) => {
+  const jobID = req.body.jobID;
+
+  await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Declined" });
+  res.json("Job declined successfully");
 });

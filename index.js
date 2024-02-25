@@ -421,6 +421,26 @@ app.post("/addjob", upload.none(), async (req, res) => {
   });
 });
 
+app.post("/verifyPassword", async (req, res) => {
+  const currentPassword = req.body.currentPassword;
+  const userID = req.body.userID;
+
+  console.log(currentPassword, userID);
+
+  const user = await UserModel.findById(userID);
+
+  // Compare the passwords
+  bcrypt.compare(currentPassword, user.password, function (err, result) {
+    if (err) {
+      res.status(500).json({ error: "Internal error please try again" });
+    } else if (result) {
+      res.json(true);
+    } else {
+      res.json(false);
+    }
+  });
+});
+
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
   const linkId = req.params.id;
@@ -808,18 +828,33 @@ app.put(
 app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
   const userID = req.body.userID;
   const fileName = req.file ? req.file.filename : "";
+  const password = req.body.password;
 
-  if (fileName) {
-    const pdfFilename = await UserModel.findById({ _id: userID });
-    const oldPdfPath = "./resumes/" + pdfFilename.pdfFile;
+  if (password) {
+    const encryptedPassword = await bcrypt.hash(password, 10);
+    await UserModel.findByIdAndUpdate(
+      { _id: userID },
+      { ...req.body, password: encryptedPassword }
+    );
+    res.json({ valid: true });
+  } else {
+    if (fileName) {
+      const pdfFilename = await UserModel.findById({ _id: userID });
+      const oldPdfPath = "./resumes/" + pdfFilename.pdfFile;
 
-    fs.unlink(oldPdfPath, async () => {
-      await UserModel.findByIdAndUpdate({ _id: userID }, { pdfFile: fileName });
-    });
+      fs.unlink(oldPdfPath, async () => {
+        await UserModel.findByIdAndUpdate(
+          { _id: userID },
+          { pdfFile: fileName }
+        );
+      });
+    }
+
+    await UserModel.findByIdAndUpdate({ _id: userID }, { ...req.body });
+    res.json({ valid: true });
   }
 
-  await UserModel.findByIdAndUpdate({ _id: userID }, { ...req.body });
-  res.json({ valid: true });
+ 
 });
 
 app.put("/verifyJobPost", upload.none(), async (req, res) => {
@@ -853,3 +888,10 @@ app.put("/declineJob", async (req, res) => {
   await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Declined" });
   res.json("Job declined successfully");
 });
+
+app.put("expireJob", async (req, res) => {
+  const jobID = req.body.jobID;
+
+  await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Expired" });
+  res.json("Job expired successfully");
+});7

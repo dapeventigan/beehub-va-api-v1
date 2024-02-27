@@ -889,7 +889,7 @@ app.put("/declineJob", async (req, res) => {
   res.json("Job declined successfully");
 });
 
-app.put("expireJob", async (req, res) => {
+app.put("/expireJob", async (req, res) => {
   const jobID = req.body.jobID;
 
   await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Expired" });

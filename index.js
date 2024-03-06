@@ -9,6 +9,8 @@ const path = require("path"); // Import the 'path' module
 const http = require("http");
 const fs = require("fs");
 const { Server } = require("socket.io");
+const cron = require("node-cron");
+
 //utils
 const verifyEmail = require("./utils/verifyEmail");
 const resetPassword = require("./utils/resetPassword");
@@ -48,10 +50,15 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   next();
 });
-app.use("/resumes", express.static(path.join(__dirname, "resumes")));
+app.use("/resumes", express.static(path.join(__dirname, "files/resumes")));
 app.use(
   "/profilepicture",
-  express.static(path.join(__dirname, "profilepicture"))
+  express.static(path.join(__dirname, "files/profilepicture"))
+);
+
+app.use(
+  "/certificates",
+  express.static(path.join(__dirname, "files/certificates"))
 );
 
 mongoose.connect(process.env.DB, {
@@ -67,15 +74,16 @@ server.listen(port, () => {
 const UserModel = require("./models/userSchema");
 const VerifyUserModel = require("./models/verifyUserSchema");
 const JobBoardModel = require("./models/jobBoards");
+const EmploymentModel = require("./models/employmentSchema");
+const TrainingModel = require("./models/trainingSchema");
 
 //MULTER
 const multer = require("multer");
-const { log } = require("console");
 
 //resumes
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "./resumes");
+    cb(null, "./files/resumes");
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now();
@@ -83,6 +91,35 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
+
+//profile picture
+
+const imgStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./files/profilepicture");
+  },
+  filename: function (req, file, cb) {
+    const uniqueDPname = Date.now();
+    cb(null, uniqueDPname + file.originalname);
+  },
+});
+
+const profilepic = multer({ storage: imgStorage });
+
+//certificates
+
+const certStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./files/certificates");
+  },
+  filename: function (req, file, cb) {
+    const uniqueDPname = Date.now();
+    cb(null, uniqueDPname + file.originalname);
+  },
+});
+
+const certificate = multer({ storage: certStorage });
+
 
 //POST
 
@@ -441,6 +478,31 @@ app.post("/verifyPassword", async (req, res) => {
   });
 });
 
+app.post("/hire", upload.none(), async (req, res) => {
+  await new EmploymentModel({
+    ...req.body,
+    dateHired: new Date(),
+    employmentStatus: "Active",
+  }).save();
+
+  res.json("Success");
+});
+
+app.post("/addTraining", certificate.single("certificate"), async (req, res) => {
+
+  const fileName = req.file ? req.file.filename : "";
+try {
+  await new TrainingModel({
+    ...req.body,
+    certificate: fileName,
+  }).save();
+  res.json("Success");
+} catch (error) {
+  res.json(error.toString());
+}
+
+});
+
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
   const linkId = req.params.id;
@@ -688,10 +750,10 @@ app.get("/getSpecificUser", async (req, res) => {
     });
 });
 
-app.get("/getApplyUsers", async (req, res) => {
+app.get("/getVAUsers", async (req, res) => {
   const userRole = "virtualassistant";
 
-  await UserModel.find({ role: userRole, archive: false })
+  await UserModel.find({ role: userRole })
     .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
@@ -704,7 +766,7 @@ app.get("/getApplyUsers", async (req, res) => {
 app.get("/getJoinUsers", async (req, res) => {
   const userRole = "client";
 
-  await UserModel.find({ role: userRole, archive: false })
+  await UserModel.find({ role: userRole })
     .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
@@ -731,6 +793,17 @@ app.get("/viewPDF", (req, res) => {
 });
 
 //JOB BOARDS
+
+app.get("/getAllJobData", async (req, res) => {
+  await JobBoardModel.find({ jobVerified: { $nin: ["Pending", "Closed"] } })
+    .sort({ _id: -1 })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
 
 app.get("/getJobData", async (req, res) => {
   await JobBoardModel.find({ jobVerified: "Accepted" })
@@ -770,7 +843,10 @@ app.get("/getAppliedJob", async (req, res) => {
     res.json("User not found");
   } else {
     const userCheck = await JobBoardModel.find({
-      $and: [{ _id: req.query.jobID }, { usersApplied: req.query.userID }],
+      $and: [
+        { _id: req.query.jobID },
+        { "usersApplied.userID": req.query.userID },
+      ],
     });
     if (userCheck.length === 0) {
       res.json("User not found");
@@ -779,21 +855,60 @@ app.get("/getAppliedJob", async (req, res) => {
     }
   }
 });
-//PUT
 
-//profile picture
-
-const imgStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./profilepicture");
-  },
-  filename: function (req, file, cb) {
-    const uniqueDPname = Date.now();
-    cb(null, uniqueDPname + file.originalname);
-  },
+app.get("/getUnverifiedUsers", async (req, res) => {
+  await UserModel.find({ role: "virtualassistant", verifiedForJob: false })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
 });
 
-const profilepic = multer({ storage: imgStorage });
+app.get("/getJobHistory", async (req, res) => {
+  await EmploymentModel.find({ vaID: req.query.userID })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getJobHistory", async (req, res) => {
+  await EmploymentModel.find({ vaID: req.query.userID })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getHiredVA", async (req, res) => {
+  await EmploymentModel.find({ clientID: req.query.userID })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getUnhireRequest", async (req, res) => {
+  await EmploymentModel.find({
+    employmentStatus: "Unhire Requested",
+  })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+//PUT
 
 app.put(
   "/editProfilePicture",
@@ -804,7 +919,7 @@ app.put(
 
     if (profilepic) {
       const imagefile = await UserModel.findById({ _id: userId });
-      const oldProfilePicPath = "./profilepicture/" + imagefile.profilePicture;
+      const oldProfilePicPath = "./files/profilepicture/" + imagefile.profilePicture;
 
       fs.unlink(oldProfilePicPath, async () => {
         await UserModel.findByIdAndUpdate(
@@ -840,7 +955,7 @@ app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
   } else {
     if (fileName) {
       const pdfFilename = await UserModel.findById({ _id: userID });
-      const oldPdfPath = "./resumes/" + pdfFilename.pdfFile;
+      const oldPdfPath = "./files/resumes/" + pdfFilename.pdfFile;
 
       fs.unlink(oldPdfPath, async () => {
         await UserModel.findByIdAndUpdate(
@@ -853,8 +968,6 @@ app.put("/accountSettings", upload.single("pdfFile"), async (req, res) => {
     await UserModel.findByIdAndUpdate({ _id: userID }, { ...req.body });
     res.json({ valid: true });
   }
-
- 
 });
 
 app.put("/verifyJobPost", upload.none(), async (req, res) => {
@@ -876,9 +989,10 @@ app.put("/verifyJobPost", upload.none(), async (req, res) => {
 app.put("/applyJob", async (req, res) => {
   const jobID = req.body.jobID;
   const userID = req.body.userID;
+  const userName = req.body.userName;
 
   await JobBoardModel.findByIdAndUpdate(jobID, {
-    $push: { usersApplied: userID },
+    $push: { usersApplied: { userID, userName } },
   });
 });
 
@@ -889,9 +1003,75 @@ app.put("/declineJob", async (req, res) => {
   res.json("Job declined successfully");
 });
 
+app.put("/closeJob", async (req, res) => {
+  const jobID = req.body.jobID;
+
+  await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Closed" });
+  res.json("Job closed successfully");
+});
+
 app.put("/expireJob", async (req, res) => {
   const jobID = req.body.jobID;
 
   await JobBoardModel.findByIdAndUpdate(jobID, { jobVerified: "Expired" });
   res.json("Job expired successfully");
-});7
+});
+
+app.put("/verifyUserForJob", async (req, res) => {
+  const userID = req.body.userID;
+
+  await UserModel.findByIdAndUpdate(userID, { verifiedForJob: true });
+  res.json({ valid: true });
+});
+
+app.put("/unhire", async (req, res) => {
+  const employmentID = req.body.jobID;
+
+  try {
+    await EmploymentModel.findByIdAndUpdate(employmentID, {
+      employmentStatus: "Unhire Requested",
+    });
+    res.json("Request sent");
+  } catch (error) {
+    res.json("Request failed");
+  }
+});
+
+app.put("/adminUnhire", async (req, res) => {
+  const employmentID = req.body.id;
+  const action = req.body.action;
+
+  try {
+    if (action === "Active") {
+      await EmploymentModel.findByIdAndUpdate(employmentID, {
+        employmentStatus: action,
+      });
+    } else {
+      await EmploymentModel.findByIdAndUpdate(employmentID, {
+        employmentStatus: action,
+        dateEnded: new Date(),
+      });
+    }
+    res.json({ valid: true });
+  } catch (error) {
+    res.json("Request failed");
+  }
+});
+
+//DEADLINE SCHEDULER
+cron.schedule("0 * * * *", async () => {
+  console.log("your time has come");
+  const now = new Date();
+  const expiredJobs = await JobBoardModel.find({
+    jobDeadline: { $lt: now },
+    jobVerified: { $ne: "Expired" },
+  });
+
+  expiredJobs.forEach(async (job) => {
+    if (new Date(job.jobDeadline) < now) {
+      await JobBoardModel.findByIdAndUpdate(job._id, {
+        jobVerified: "Expired",
+      });
+    }
+  });
+});

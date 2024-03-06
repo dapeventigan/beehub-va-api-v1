@@ -1,10 +1,4 @@
-  const mongoose = require("mongoose");
-
-const jobDetailsSchema = new mongoose.Schema({
-  name: String,
-  date: Date,
-  jobName: String,
-});
+const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
   pdfFile: String,
@@ -28,12 +22,13 @@ const UserSchema = new mongoose.Schema({
   linkedinLink: String,
   igLink: String,
   role: String,
-  jobHistory: [jobDetailsSchema],
   emailSubscribe: { type: Boolean, default: false },
   googleVerified: { type: Boolean, default: false },
   archive: { type: Boolean, default: false },
   verified: { type: Boolean, default: false },
   contacted: { type: Boolean, default: false },
+  verifiedForJob: { type: Boolean, default: false },
+  joinedDate: { type: Date, default: Date.now },
 });
 
 const UserModel = mongoose.model("UserData", UserSchema);

@@ -76,6 +76,7 @@ const VerifyUserModel = require("./models/verifyUserSchema");
 const JobBoardModel = require("./models/jobBoards");
 const EmploymentModel = require("./models/employmentSchema");
 const TrainingModel = require("./models/trainingSchema");
+const CertificateModel = require("./models/certificateSchema");
 
 //MULTER
 const multer = require("multer");
@@ -503,6 +504,22 @@ try {
 
 });
 
+app.post("/addCertificate", certificate.single("certificate"), async (req, res) => {
+
+  const fileName = req.file ? req.file.filename : "";
+
+try {
+  await new CertificateModel({
+    ...req.body,
+    certificate: fileName,
+  }).save();
+  res.json("Success");
+} catch (error) {
+  res.json(error.toString());
+}
+
+});
+
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
   const linkId = req.params.id;
@@ -795,7 +812,7 @@ app.get("/viewPDF", (req, res) => {
 //JOB BOARDS
 
 app.get("/getAllJobData", async (req, res) => {
-  await JobBoardModel.find({ jobVerified: { $nin: ["Pending", "Closed"] } })
+  await JobBoardModel.find({ jobVerified: { $nin: ["Pending", "Closed", "Declined"] } })
     .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
@@ -804,6 +821,18 @@ app.get("/getAllJobData", async (req, res) => {
       res.send({ message: error });
     });
 });
+
+app.get("/getHireJobData", async (req, res) => {
+  await JobBoardModel.find({ jobVerified: { $nin: ["Closed", "Declined"] } })
+    .sort({ _id: -1 })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
 
 app.get("/getJobData", async (req, res) => {
   await JobBoardModel.find({ jobVerified: "Accepted" })
@@ -866,8 +895,8 @@ app.get("/getUnverifiedUsers", async (req, res) => {
     });
 });
 
-app.get("/getJobHistory", async (req, res) => {
-  await EmploymentModel.find({ vaID: req.query.userID })
+app.get("/getActiveWorkers", async (req, res) => {
+  await EmploymentModel.find({ employmentStatus: "Active"})
     .then((data) => {
       res.json(data);
     })
@@ -899,6 +928,30 @@ app.get("/getHiredVA", async (req, res) => {
 app.get("/getUnhireRequest", async (req, res) => {
   await EmploymentModel.find({
     employmentStatus: "Unhire Requested",
+  })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getTraining", async (req, res) => {
+  await TrainingModel.find({
+    vaID: req.query.userID,
+  })
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((error) => {
+      res.send({ message: error });
+    });
+});
+
+app.get("/getCertificate", async (req, res) => {
+  await CertificateModel.find({
+    vaID: req.query.userID,
   })
     .then((data) => {
       res.json(data);
@@ -1056,6 +1109,22 @@ app.put("/adminUnhire", async (req, res) => {
   } catch (error) {
     res.json("Request failed");
   }
+});
+
+//DELETE
+app.delete("/deleteCertificate", async (req, res) => {
+  const certificateID = req.body.id;
+  const certificateFile = req.body.file;
+  try {
+    const filePath = "./files/certificates/" + certificateFile;
+    fs.unlink(filePath, async () => {
+      await CertificateModel.findByIdAndRemove(certificateID);
+    }); 
+    res.json("Success");
+  } catch (error) {
+    res.json(error.toString());
+  }
+
 });
 
 //DEADLINE SCHEDULER

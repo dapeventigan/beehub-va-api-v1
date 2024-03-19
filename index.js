@@ -350,14 +350,21 @@ app.post("/manatalresume", async (req, res) => {
   const user = req.body.user;
   const manatalID = req.body.manatalid;
 
-  const resumelink = await sdk.candidates_resume_create({
-    candidate_pk: manatalID,
-    resume_file: `https://server.beehubvas.com/resumes/${user.pdfFile}`,
-  });
+  try {
+    const resumelink = await sdk
+      .candidates_resume_create({
+        candidate_pk: manatalID,
+        resume_file: `https://server.beehubvas.com/resumes/${user.pdfFile}`,
+      })
+      .then(({ data }) => console.log(data))
+      .catch((err) => console.error(err));
 
-  await UserModel.findByIdAndUpdate(user._id, {
-    manatalResume: resumelink.resume_file,
-  });
+    await UserModel.findByIdAndUpdate(user._id, {
+      manatalResume: resumelink.resume_file,
+    });
+  } catch (error) {
+    console.log(error);
+  }
 });
 
 app.post("/login", async (req, res) => {

@@ -150,7 +150,16 @@ io.on("connection", (socket) => {
   });
 });
 
-app.post("/register", upload.single("pdfFile"), async (req, res) => {
+app.post("/register", upload.single("pdfFile"), async (req, res, next) => {
+  // Ensure the file was uploaded successfully
+  if (!req.file) {
+    return res.status(400).json({ message: "No file uploaded" });
+  }
+
+  next();
+});
+
+app.post("/register", async (req, res) => {
   const roleStatus = req.body.roleStatus;
   const googleSignStatus = req.body.googleVerified;
   const password = req.body.password;
@@ -332,9 +341,7 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             .candidates_resume_create({
               candidate_pk: userData.data.id,
               resume_file: `https://server.beehubvas.com/resumes/${user.pdfFile}`,
-            })
-            .then(({ data }) => console.log(data))
-            .catch((err) => console.error(err));
+            });
 
           await UserModel.findByIdAndUpdate(user._id, {
             manatalResume: resumelink.resume_file,

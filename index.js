@@ -347,19 +347,18 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
 });
 
 app.post("/manatalresume", async (req, res) => {
+  const manatalID = req.body.manatalid;
   const user = req.body.user;
   const encodedPDFuri =  encodeURIComponent(user.pdfFile);
-  const manatalID = req.body.manatalid;
-
-  console.log(`https://server.beehubvas.com/resumes/${encodedPDFuri}`);
+  const resumeURI = `https://server.beehubvas.com/resumes/${encodedPDFuri}`;
 
   try {
     const resumelink = await sdk
       .candidates_resume_create({
         candidate_pk: manatalID,
-        resume_file: `https://server.beehubvas.com/resumes/${encodedPDFuri}`,
+        resume_file: resumeURI,
       })
-      .then(({ data }) => console.log(data))
+      .then()
       .catch((err) => console.error(err));
 
     await UserModel.findByIdAndUpdate(user._id, {

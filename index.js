@@ -354,10 +354,10 @@ app.post("/manatalresume", async (req, res) => {
   console.log(manatalID + " is accepting " + resumeURI);
 
   await sdk
-    .candidates_resume_create({
-      candidate_pk: manatalID,
-      resume_file: resumeURI,
-    })
+    .candidates_resume_create(
+      { resume_file: resumeURI },
+      { candidate_pk: manatalID }
+    )
     .then(({ data }) => {
       UserModel.findByIdAndUpdate(user._id, {
         manatalResume: data.resume_file,

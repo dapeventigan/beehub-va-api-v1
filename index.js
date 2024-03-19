@@ -150,16 +150,7 @@ io.on("connection", (socket) => {
   });
 });
 
-app.post("/register", upload.single("pdfFile"), async (req, res, next) => {
-  // Ensure the file was uploaded successfully
-  if (!req.file) {
-    return res.status(400).json({ message: "No file uploaded" });
-  }
-
-  next();
-});
-
-app.post("/register", async (req, res) => {
+app.post("/register", upload.single("pdfFile"), async (req, res) => {
   const roleStatus = req.body.roleStatus;
   const googleSignStatus = req.body.googleVerified;
   const password = req.body.password;
@@ -279,15 +270,6 @@ app.post("/register", async (req, res) => {
           await UserModel.findByIdAndUpdate(user._id, {
             manatalID: userData.data.id,
           });
-
-          const resumelink = await sdk.candidates_resume_create({
-            candidate_pk: userData.data.id,
-            resume_file: `https://server.beehubvas.com/resumes/${fileName}`,
-          });
-
-          await UserModel.findByIdAndUpdate(user._id, {
-            manatalResume: resumelink.resume_file,
-          });
         } catch (error) {
           console.error(error);
         }
@@ -324,7 +306,7 @@ app.post("/register", async (req, res) => {
             password: encryptedPassword,
           }).save();
 
-          const userData = await sdk.candidates_create({
+          const manatal = await sdk.candidates_create({
             external_id: user._id,
             full_name: user.fname + " " + user.lname,
             source_type: "applied",
@@ -334,22 +316,19 @@ app.post("/register", async (req, res) => {
           });
 
           await UserModel.findByIdAndUpdate(user._id, {
-            manatalID: userData.data.id,
+            manatalID: manatal.data.id,
           });
 
-          const resumelink = await sdk
-            .candidates_resume_create({
-              candidate_pk: userData.data.id,
-              resume_file: `https://server.beehubvas.com/resumes/${user.pdfFile}`,
-            });
-
-          await UserModel.findByIdAndUpdate(user._id, {
-            manatalResume: resumelink.resume_file,
+          res.status(200).send({
+            message: "Email sent, check your mail.",
+            user: user,
+            manatal: manatal,
           });
         } catch (error) {
           console.error(error);
         }
 
+        //verify and continue
         const userVerify = await new VerifyUserModel({
           userId: user._id,
           uniqueString: crypto.randomBytes(32).toString("hex"),
@@ -362,14 +341,23 @@ app.post("/register", async (req, res) => {
         //   req.body.selectedValues,
         //   fileName
         // );
-
-        res.status(200).send({
-          message: "Email sent, check your mail.",
-          user: user,
-        });
       }
     }
   }
+});
+
+app.post("/manatalresume", async (req, res) => {
+  const resume = req.body.resume;
+  const manatalID = req.body.manatalid;
+
+  const resumelink = await sdk.candidates_resume_create({
+    candidate_pk: manatalID,
+    resume_file: `https://server.beehubvas.com/resumes/${resume}`,
+  });
+
+  await UserModel.findByIdAndUpdate(user._id, {
+    manatalResume: resumelink.resume_file,
+  });
 });
 
 app.post("/login", async (req, res) => {

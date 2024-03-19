@@ -324,16 +324,17 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             phone_number: user.mobileNumber,
           });
 
-          console.log(userData.data.id);
-
           await UserModel.findByIdAndUpdate(user._id, {
             manatalID: userData.data.id,
           });
 
-          const resumelink = await sdk.candidates_resume_create({
-            candidate_pk: userData.data.id,
-            resume_file: `https://server.beehubvas.com/resumes/${fileName}`,
-          });
+          const resumelink = await sdk
+            .candidates_resume_create({
+              candidate_pk: userData.data.id,
+              resume_file: `https://server.beehubvas.com/resumes/${user.pdfFile}`,
+            })
+            .then(({ data }) => console.log(data))
+            .catch((err) => console.error(err));
 
           await UserModel.findByIdAndUpdate(user._id, {
             manatalResume: resumelink.resume_file,

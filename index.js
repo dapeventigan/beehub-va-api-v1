@@ -78,6 +78,10 @@ const EmploymentModel = require("./models/employmentSchema");
 const TrainingModel = require("./models/trainingSchema");
 const CertificateModel = require("./models/certificateSchema");
 
+//MANATAL
+const sdk = require("api")("@manatalapi/v3#1t65nfls2ndbhu");
+sdk.auth(`Token ${process.env.MANATAL_OPEN_AI}`);
+
 //MULTER
 const multer = require("multer");
 
@@ -121,7 +125,6 @@ const certStorage = multer.diskStorage({
 
 const certificate = multer({ storage: certStorage });
 
-
 //POST
 
 io.on("connection", (socket) => {
@@ -159,13 +162,26 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
   if (user) {
     res.send({ message: "Email Already Exist!" });
   } else {
+    //CLIENT REGISTRATION
     if (roleStatus === "client") {
       if (googleSignStatus) {
         user = await new UserModel({
           ...req.body,
           verified: true,
           role: roleStatus,
-        }).save();
+        })
+          .save()
+          .then((dataModel) => {
+            sdk.auth(`Token ${process.env.MANATAL_OPEN_AI}`);
+            sdk
+              .organizations_create({
+                external_id: dataModel._id,
+                name: dataModel.fname + " " + dataModel.lname,
+              })
+              .then(({ data }) => console.log(data))
+              .catch((err) => console.error(err));
+          })
+          .catch((err) => console.error(err));
 
         // await welcomeJoinEmail(req.body.email, req.body.fname);
 
@@ -191,11 +207,28 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
 
-        user = await new UserModel({
-          ...req.body,
-          role: roleStatus,
-          password: encryptedPassword,
-        }).save();
+        try {
+          user = await new UserModel({
+            ...req.body,
+            role: roleStatus,
+            password: encryptedPassword,
+          }).save();
+
+          await sdk
+            .organizations_create({
+              external_id: user._id,
+              name: user.fname + " " + user.lname,
+            })
+            .then(({ data }) => {
+              console.log(data.id);
+              return UserModel.findByIdAndUpdate(user._id, {
+                manatalID: data.id,
+              });
+            })
+            .catch((err) => console.error(err));
+        } catch (error) {
+          console.log(error);
+        }
 
         const userVerify = await new VerifyUserModel({
           userId: user._id,
@@ -215,12 +248,40 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
       //VA REGISTER
       const fileName = req.file.filename;
       if (googleSignStatus) {
-        user = await new UserModel({
-          ...req.body,
-          pdfFile: fileName,
-          verified: true,
-          role: roleStatus,
-        }).save();
+        try {
+          user = await new UserModel({
+            ...req.body,
+            pdfFile: fileName,
+            verified: true,
+            role: roleStatus,
+          }).save();
+
+          const userData = await sdk.candidates_create({
+            external_id: user._id,
+            full_name: user.fname + " " + user.lname,
+            source_type: "applied",
+            consent: true,
+            email: user.email,
+            phone_number: user.mobileNumber,
+          });
+
+          console.log(userData.data.id);
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalID: userData.data.id,
+          });
+
+          const resumelink = await sdk.candidates_resume_create({
+            candidate_pk: userData.data.id,
+            resume_file: `https://server.beehubvas.com/resumes/${fileName}`,
+          });
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalResume: resumelink.resume_file,
+          });
+        } catch (error) {
+          console.error(error);
+        }
 
         // await welcomeEmail(req.body.email, req.body.fname);
 
@@ -246,12 +307,40 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
 
-        user = await new UserModel({
-          ...req.body,
-          role: roleStatus,
-          pdfFile: fileName,
-          password: encryptedPassword,
-        }).save();
+        try {
+          user = await new UserModel({
+            ...req.body,
+            role: roleStatus,
+            pdfFile: fileName,
+            password: encryptedPassword,
+          }).save();
+
+          const userData = await sdk.candidates_create({
+            external_id: user._id,
+            full_name: user.fname + " " + user.lname,
+            source_type: "applied",
+            consent: true,
+            email: user.email,
+            phone_number: user.mobileNumber,
+          });
+
+          console.log(userData.data.id);
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalID: userData.data.id,
+          });
+
+          const resumelink = await sdk.candidates_resume_create({
+            candidate_pk: userData.data.id,
+            resume_file: `https://server.beehubvas.com/resumes/${fileName}`,
+          });
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalResume: resumelink.resume_file,
+          });
+        } catch (error) {
+          console.error(error);
+        }
 
         const userVerify = await new VerifyUserModel({
           userId: user._id,
@@ -348,7 +437,7 @@ app.post("/login", async (req, res) => {
 
             res.cookie("token", token, {
               httpOnly: true,
-              secure: true, // Set to true if your application is served over HTTPS
+              secure: true,
               sameSite: "None",
               maxAge: 24 * 60 * 60 * 1000,
             });
@@ -489,36 +578,40 @@ app.post("/hire", upload.none(), async (req, res) => {
   res.json("Success");
 });
 
-app.post("/addTraining", certificate.single("certificate"), async (req, res) => {
+app.post(
+  "/addTraining",
+  certificate.single("certificate"),
+  async (req, res) => {
+    const fileName = req.file ? req.file.filename : "";
+    try {
+      await new TrainingModel({
+        ...req.body,
+        certificate: fileName,
+      }).save();
+      res.json("Success");
+    } catch (error) {
+      res.json(error.toString());
+    }
+  }
+);
 
-  const fileName = req.file ? req.file.filename : "";
-try {
-  await new TrainingModel({
-    ...req.body,
-    certificate: fileName,
-  }).save();
-  res.json("Success");
-} catch (error) {
-  res.json(error.toString());
-}
+app.post(
+  "/addCertificate",
+  certificate.single("certificate"),
+  async (req, res) => {
+    const fileName = req.file ? req.file.filename : "";
 
-});
-
-app.post("/addCertificate", certificate.single("certificate"), async (req, res) => {
-
-  const fileName = req.file ? req.file.filename : "";
-
-try {
-  await new CertificateModel({
-    ...req.body,
-    certificate: fileName,
-  }).save();
-  res.json("Success");
-} catch (error) {
-  res.json(error.toString());
-}
-
-});
+    try {
+      await new CertificateModel({
+        ...req.body,
+        certificate: fileName,
+      }).save();
+      res.json("Success");
+    } catch (error) {
+      res.json(error.toString());
+    }
+  }
+);
 
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
@@ -572,14 +665,19 @@ app.get("/va-bh/:username/:id", async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     res.json("Link Broken");
   } else {
-    const userId = await UserModel.findOne({
+    const user = await UserModel.findOne({
       _id: req.params.id,
       role: "virtualassistant",
     });
-    if (!userId) {
+    if (!user) {
       res.json("Profile doesn't exist");
     } else {
-      res.json(userId);
+      sdk
+        .candidates_list({ external_id: user._id.toString() })
+        .then(({ data }) => {
+          res.json({ user: user, candidates: data.results[0] });
+        })
+        .catch((err) => console.error(err));
     }
   }
 });
@@ -709,7 +807,12 @@ app.get("/applyuserdashboard", verifyApplyUser, (req, res) => {
     res.json("User not found");
   } else {
     if (user.role === "virtualassistant") {
-      res.json(user);
+      sdk
+        .candidates_list({ external_id: user._id.toString() })
+        .then(({ data }) => {
+          res.json({ user: user, candidates: data.results[0] });
+        })
+        .catch((err) => console.error(err));
     } else {
       res.json("User not found");
     }
@@ -812,7 +915,9 @@ app.get("/viewPDF", (req, res) => {
 //JOB BOARDS
 
 app.get("/getAllJobData", async (req, res) => {
-  await JobBoardModel.find({ jobVerified: { $nin: ["Pending", "Closed", "Declined"] } })
+  await JobBoardModel.find({
+    jobVerified: { $nin: ["Pending", "Closed", "Declined"] },
+  })
     .sort({ _id: -1 })
     .then((data) => {
       res.json(data);
@@ -832,7 +937,6 @@ app.get("/getHireJobData", async (req, res) => {
       res.send({ message: error });
     });
 });
-
 
 app.get("/getJobData", async (req, res) => {
   await JobBoardModel.find({ jobVerified: "Accepted" })
@@ -896,7 +1000,7 @@ app.get("/getUnverifiedUsers", async (req, res) => {
 });
 
 app.get("/getActiveWorkers", async (req, res) => {
-  await EmploymentModel.find({ employmentStatus: "Active"})
+  await EmploymentModel.find({ employmentStatus: "Active" })
     .then((data) => {
       res.json(data);
     })
@@ -972,7 +1076,8 @@ app.put(
 
     if (profilepic) {
       const imagefile = await UserModel.findById({ _id: userId });
-      const oldProfilePicPath = "./files/profilepicture/" + imagefile.profilePicture;
+      const oldProfilePicPath =
+        "./files/profilepicture/" + imagefile.profilePicture;
 
       fs.unlink(oldProfilePicPath, async () => {
         await UserModel.findByIdAndUpdate(
@@ -1119,12 +1224,11 @@ app.delete("/deleteCertificate", async (req, res) => {
     const filePath = "./files/certificates/" + certificateFile;
     fs.unlink(filePath, async () => {
       await CertificateModel.findByIdAndRemove(certificateID);
-    }); 
+    });
     res.json("Success");
   } catch (error) {
     res.json(error.toString());
   }
-
 });
 
 //DEADLINE SCHEDULER

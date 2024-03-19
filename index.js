@@ -349,9 +349,9 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
 app.post("/manatalresume", async (req, res) => {
   const manatalID = req.body.manatalid;
   const user = req.body.user;
-  const encodedPDFuri =  encodeURIComponent(user.pdfFile);
+  const encodedPDFuri = encodeURIComponent(user.pdfFile);
   const resumeURI = `https://server.beehubvas.com/resumes/${encodedPDFuri}`;
-
+  console.log(manatalID + " is accepting " + resumeURI);
   try {
     const resumelink = await sdk
       .candidates_resume_create({

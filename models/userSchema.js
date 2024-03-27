@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
   manatalID: String,
-  manatalResume: String,
   pdfFile: String,
   profilePicture: String,
   selectedOption: String,
@@ -11,6 +10,7 @@ const UserSchema = new mongoose.Schema({
   username: String,
   mobileNumber: String,
   industry: String,
+  company: String,
   email: String,
   password: String,
   hearAbout: String,

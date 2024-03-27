@@ -77,6 +77,7 @@ const JobBoardModel = require("./models/jobBoards");
 const EmploymentModel = require("./models/employmentSchema");
 const TrainingModel = require("./models/trainingSchema");
 const CertificateModel = require("./models/certificateSchema");
+const UnhireModel = require("./models/unhireSchema");
 
 //MANATAL
 const sdk = require("api")("@manatalapi/v3#1t65nfls2ndbhu");
@@ -165,23 +166,59 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
     //CLIENT REGISTRATION
     if (roleStatus === "client") {
       if (googleSignStatus) {
-        user = await new UserModel({
-          ...req.body,
-          verified: true,
-          role: roleStatus,
-        })
-          .save()
-          .then((dataModel) => {
-            sdk.auth(`Token ${process.env.MANATAL_OPEN_AI}`);
-            sdk
-              .organizations_create({
-                external_id: dataModel._id,
-                name: dataModel.fname + " " + dataModel.lname,
-              })
-              .then(({ data }) => console.log(data))
-              .catch((err) => console.error(err));
-          })
-          .catch((err) => console.error(err));
+        try {
+          user = await new UserModel({
+            ...req.body,
+            verified: true,
+            role: roleStatus,
+          }).save();
+
+          const beehubregistermessage = `<p><span style="font-size: 0.875rem;"><strong>${user.fname} ${user.lname} </strong> applied through <strong>BeeHub.</strong></span></p>
+          <p><span style="font-size: 0.875rem;"><em>You can view all these information in Manatal Contact</em></span><br></p>
+          
+          <ul>
+            <li>Email: <strong>${user.email}</strong></li>
+            <li>Phone Number: <strong>${user.mobileNumber}</strong></li>
+            <li>They discovered BeeHub through: <strong>${user.hearAbout}</strong></li>
+            <li>Action: <strong>${user.selectedOption}</strong></li>
+          </ul>
+          
+          <p><span style="color: #808080; font-size: 0.7rem;">These are information from BeeHub. If you have any technical concerns or data not being correct. Please contact <strong>dabeventigan@gmail.com</strong></span></p>
+          `;
+
+          const manatal = await sdk.organizations_create({
+            custom_fields: {
+              email: user.email,
+              number: user.mobileNumber,
+              option: user.selectedOption,
+              heardWhere: user.hearAbout,
+            },
+            external_id: user._id,
+            name: user.fname + " " + user.lname,
+            description: beehubregistermessage,
+          });
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalID: manatal.data.id,
+          });
+
+          await sdk.contacts_create({
+            full_name: user.fname + " " + user.lname,
+            display_name: user.company,
+            email: user.email,
+            phone_number: user.mobileNumber,
+            description: "Applied through BeeHub",
+            organization: manatal.data.id,
+          });
+
+          res.status(200).send({
+            message: "Email sent, check your mail.",
+            user: user,
+            manatal: manatal,
+          });
+        } catch (error) {
+          console.log(error);
+        }
 
         // await welcomeJoinEmail(req.body.email, req.body.fname);
 
@@ -199,11 +236,6 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           sameSite: "None",
           maxAge: 24 * 60 * 60 * 1000,
         });
-
-        res.status(200).send({
-          message: "Email sent, check your mail.",
-          user: user,
-        });
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
 
@@ -214,18 +246,49 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             password: encryptedPassword,
           }).save();
 
-          await sdk
-            .organizations_create({
-              external_id: user._id,
-              name: user.fname + " " + user.lname,
-            })
-            .then(({ data }) => {
-              console.log(data.id);
-              return UserModel.findByIdAndUpdate(user._id, {
-                manatalID: data.id,
-              });
-            })
-            .catch((err) => console.error(err));
+          const beehubregistermessage = `<p><span style="font-size: 0.875rem;"><strong>${user.fname} ${user.lname} </strong> applied through <strong>BeeHub.</strong></span></p>
+          <p><span style="font-size: 0.875rem;"><em>You can view all these information in Manatal Contact</em></span><br></p>
+          
+          <ul>
+            <li>Email: <strong>${user.email}</strong></li>
+            <li>Phone Number: <strong>${user.mobileNumber}</strong></li>
+            <li>They discovered BeeHub through: <strong>${user.hearAbout}</strong></li>
+            <li>Action: <strong>${user.selectedOption}</strong></li>
+          </ul>
+          
+          <p><span style="color: #808080; font-size: 0.7rem;">These are information from BeeHub. If you have any technical concerns or data not being correct. Please contact <strong>dabeventigan@gmail.com</strong></span></p>
+          `;
+
+          const manatal = await sdk.organizations_create({
+            custom_fields: {
+              email: user.email,
+              number: user.mobileNumber,
+              option: user.selectedOption,
+              heardWhere: user.hearAbout,
+            },
+            external_id: user._id,
+            name: user.fname + " " + user.lname,
+            description: beehubregistermessage,
+          });
+
+          await UserModel.findByIdAndUpdate(user._id, {
+            manatalID: manatal.data.id,
+          });
+
+          await sdk.contacts_create({
+            full_name: user.fname + " " + user.lname,
+            display_name: user.company,
+            email: user.email,
+            phone_number: user.mobileNumber,
+            description: "Applied through BeeHub",
+            organization: manatal.data.id,
+          });
+
+          res.status(200).send({
+            message: "Email sent, check your mail.",
+            user: user,
+            manatal: manatal,
+          });
         } catch (error) {
           console.log(error);
         }
@@ -238,11 +301,6 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
         await verifyEmail(req.body.email, urlVerify);
 
         // await welcomeJoinEmail(req.body.email, req.body.fname);
-
-        res.status(200).send({
-          message: "Email sent, check your mail.",
-          user: user,
-        });
       }
     } else {
       //VA REGISTER
@@ -256,7 +314,7 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             role: roleStatus,
           }).save();
 
-          const userData = await sdk.candidates_create({
+          const manatal = await sdk.candidates_create({
             external_id: user._id,
             full_name: user.fname + " " + user.lname,
             source_type: "applied",
@@ -265,10 +323,14 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
             phone_number: user.mobileNumber,
           });
 
-          console.log(userData.data.id);
-
           await UserModel.findByIdAndUpdate(user._id, {
-            manatalID: userData.data.id,
+            manatalID: manatal.data.id,
+          });
+
+          res.status(200).send({
+            message: "Email sent, check your mail.",
+            user: user,
+            manatal: manatal,
           });
         } catch (error) {
           console.error(error);
@@ -289,11 +351,6 @@ app.post("/register", upload.single("pdfFile"), async (req, res) => {
           secure: true,
           sameSite: "None",
           maxAge: 24 * 60 * 60 * 1000,
-        });
-
-        res.status(200).send({
-          message: "Email sent, check your mail.",
-          user: user,
         });
       } else {
         const encryptedPassword = await bcrypt.hash(password, 10);
@@ -351,20 +408,11 @@ app.post("/manatalresume", async (req, res) => {
   const user = req.body.user;
   const encodedPDFuri = encodeURIComponent(user.pdfFile);
   const resumeURI = `https://server.beehubvas.com/resumes/${encodedPDFuri}`;
-  console.log(manatalID + " is accepting " + resumeURI);
 
-  await sdk
-    .candidates_resume_create(
-      { resume_file: resumeURI },
-      { candidate_pk: manatalID }
-    )
-    .then(({ data }) => {
-      UserModel.findByIdAndUpdate(user._id, {
-        manatalResume: data.resume_file,
-      });
-      console.log(data);
-    })
-    .catch((err) => console.error(err));
+  await sdk.candidates_resume_create(
+    { resume_file: resumeURI },
+    { candidate_pk: manatalID }
+  );
 });
 
 app.post("/login", async (req, res) => {
@@ -533,7 +581,7 @@ app.post("/addjob", upload.none(), async (req, res) => {
     } else {
       const userPostedBy = user.fname + " " + user.lname;
       await UserModel.updateOne({ _id: userID }, { bio: userBio });
-      await new JobBoardModel({
+      const job = await new JobBoardModel({
         ...req.body,
         jobPosted: new Date(),
         jobPostedBy: userPostedBy,
@@ -541,6 +589,42 @@ app.post("/addjob", upload.none(), async (req, res) => {
         jobSkills: skills,
         jobCompanyOverview: userBio,
       }).save();
+
+      const jobdescription = `
+        <p><strong>Company Overview</strong></p>
+  <p>${job.jobCompanyOverview}</p>
+  <p><strong>Job Overview</strong></p>
+  <p>${job.jobSummary}</p>
+  <p><strong>Work Time</strong></p>
+  <p>${job.jobHours}</p>
+  <p><strong>Responsibilities</strong></p>
+  <p>${job.jobKeyResponsibilities}</p>
+  <p><strong>Requirements</strong></p>
+  <p>${job.jobRequirements}</p>
+  <p><strong>Benefits</strong></p>
+  <p>${job.jobBenefits}</p>
+        `;
+
+      const manatal = await sdk.jobs_create({
+        external_id: job._id,
+        organization: user.manatalID,
+        position_name: job.jobTitle,
+        description: jobdescription,
+        headcount: job.jobHeadcount,
+        salary_min: job.jobMinSalary.replace(/,/g, ""),
+        salary_max: job.jobMaxSalary.replace(/,/g, ""),
+        currency: job.jobCurrency,
+        address: job.jobLocation,
+        is_published: false,
+        status: "on_hold",
+        contract_details: job.jobEmploymentType,
+        is_remote: true,
+        is_pinned_in_career_page: false,
+      });
+
+      await JobBoardModel.findByIdAndUpdate(job._id, {
+        jobManatalID: manatal.data.id,
+      });
     }
   } catch (error) {
     console.log(error);
@@ -615,6 +699,23 @@ app.post(
     }
   }
 );
+
+app.post("/unhire", async (req, res) => {
+  await new UnhireModel({
+    vaID: req.body.vaID,
+    vaName: req.body.vaName,
+    matchID: req.body.matchID,
+    jobID: req.body.jobID,
+    jobName: req.body.jobName,
+    clientID: req.body.clientID,
+    clientName: req.body.clientName,
+    message: req.body.message,
+    status: "request",
+  })
+    .save()
+    .then(() => res.json("Request sent"))
+    .catch(() => res.json("Request failed"));
+});
 
 //GET
 app.get("/verify/:id/:token", async (req, res) => {
@@ -693,7 +794,12 @@ app.get("/job-boards/bh/:id", async (req, res) => {
     if (!jobId) {
       res.json("Job doesn't exist");
     } else {
-      res.json(jobId);
+      sdk
+        .jobs_list({ external_id: jobId._id.toString() })
+        .then(({ data }) => {
+          res.json({ beehubjob: jobId, manataljob: data.results[0] });
+        })
+        .catch((err) => console.error(err));
     }
   }
 });
@@ -942,25 +1048,36 @@ app.get("/getHireJobData", async (req, res) => {
 });
 
 app.get("/getJobData", async (req, res) => {
-  await JobBoardModel.find({ jobVerified: "Accepted" })
-    .sort({ _id: -1 })
-    .then((data) => {
-      res.json(data);
+  await sdk
+    .jobs_list({ status: "active" })
+    .then(({ data }) => {
+      const results = data.results;
+      res.json(results);
     })
-    .catch((error) => {
-      res.send({ message: error });
-    });
+    .catch((err) => console.error(err));
+
+  // await JobBoardModel.find({ jobVerified: "Accepted" })
+  //   .sort({ _id: -1 })
+  //   .then((data) => {
+  //     res.json(data);
+  //   })
+  //   .catch((error) => {
+  //     res.send({ message: error });
+  //   });
 });
 
 app.get("/getClientJobData", async (req, res) => {
-  await JobBoardModel.find({ jobPostedById: req.query.userID })
-    .sort({ _id: -1 })
-    .then((data) => {
-      res.json(data);
-    })
-    .catch((error) => {
-      res.send({ message: error });
-    });
+  const job = await JobBoardModel.find({
+    jobPostedById: req.query.userID,
+  }).sort({
+    _id: -1,
+  });
+
+  const manatal = await sdk.jobs_list({
+    organization_id: req.query.manatalOrgID,
+  });
+
+  res.json(manatal.data.results);
 });
 
 app.get("/getPendingJobData", async (req, res) => {
@@ -1013,34 +1130,128 @@ app.get("/getActiveWorkers", async (req, res) => {
 });
 
 app.get("/getJobHistory", async (req, res) => {
-  await EmploymentModel.find({ vaID: req.query.userID })
-    .then((data) => {
-      res.json(data);
-    })
-    .catch((error) => {
-      res.send({ message: error });
+  try {
+    const user = await UserModel.findById(req.query.userID);
+    const candidateId = parseInt(user.manatalID);
+    const { data } = await sdk.matches_list();
+    const secondData = await sdk.jobs_list();
+
+    // Filter data based on candidate ID
+    const filteredData = data.results.filter(
+      (job) => job.candidate === candidateId
+    );
+
+    // Merge filtered data with secondData
+    const mergedData = filteredData.map((job) => {
+      const matchingManatal = secondData.data.results.find(
+        (manatal) => manatal.id.toString() === job.job.toString()
+      );
+      return { ...job, jobmanataldata: matchingManatal };
     });
+
+    res.json(mergedData);
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ error: "An error occurred while fetching job history" });
+  }
 });
 
 app.get("/getHiredVA", async (req, res) => {
-  await EmploymentModel.find({ clientID: req.query.userID })
-    .then((data) => {
-      res.json(data);
-    })
-    .catch((error) => {
-      res.send({ message: error });
+  try {
+    const { data } = await sdk.matches_list();
+
+    const filteredData = data.results.filter(
+      (job) => job.organization === parseInt(req.query.manatalID)
+    );
+
+    const filteredHired = filteredData.filter(
+      (job) =>
+        job.job_pipeline_stage.name === "Probation passed" ||
+        job.job_pipeline_stage.name === "Hired" ||
+        job.job_pipeline_stage.name === "Onboarding" ||
+        job.job_pipeline_stage.name === "Started"
+    );
+
+    const candidateData = await sdk.candidates_list();
+
+    const mergedData = filteredHired.map((data) => {
+      const matchedManatalData = candidateData.data.results.find(
+        (manatal) => manatal.id.toString() === data.candidate.toString()
+      );
+      return { ...data, matcheddata: matchedManatalData };
     });
+
+    const jobData = await sdk.jobs_list();
+
+    const finalMergedData = mergedData.map((data) => {
+      const matchedManatalJob = jobData.data.results.find(
+        (manatal) => manatal.id.toString() === data.job.toString()
+      );
+      return { ...data, matchedjob: matchedManatalJob };
+    });
+
+    res.json(finalMergedData);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+app.get("/unhireStatus", async (req, res) => {
+  try {
+    const data = await UnhireModel.find({
+      clientID: req.query.clientID.toString(),
+      vaID: req.query.vaID.toString(),
+      matchID: req.query.matchID.toString(),
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.get("/getUnhireRequest", async (req, res) => {
-  await EmploymentModel.find({
-    employmentStatus: "Unhire Requested",
-  })
+  try {
+    const { data } = await sdk.matches_list();
+
+    const filteredData = data.results.filter((job) => job.is_active === false);
+
+    const beehub = await UnhireModel.find({ status: "request" });
+
+    const matchedIds = [];
+
+    filteredData.forEach((filteredJob) => {
+      const matchedEntry = beehub.find(
+        (job) =>
+          job.matchID === String(filteredJob.id) &&
+          job.vaID === String(filteredJob.candidate) &&
+          job.clientID === String(filteredJob.organization) &&
+          job.jobID === String(filteredJob.job)
+      );
+
+      if (matchedEntry) {
+        matchedIds.push(matchedEntry._id.toString());
+      }
+    });
+
+    await Promise.all(
+      matchedIds.map(async (id) => {
+        return await UnhireModel.findOneAndDelete({ _id: id });
+      })
+    );
+  } catch (error) {
+    console.log(error);
+  }
+
+  await UnhireModel.find({ status: "request" })
     .then((data) => {
       res.json(data);
     })
     .catch((error) => {
-      res.send({ message: error });
+      res.json(error);
     });
 });
 
@@ -1151,10 +1362,21 @@ app.put("/applyJob", async (req, res) => {
   const jobID = req.body.jobID;
   const userID = req.body.userID;
   const userName = req.body.userName;
+  const manatalID = req.body.manatalID;
+  const candidateID = req.body.candidateID;
 
   await JobBoardModel.findByIdAndUpdate(jobID, {
     $push: { usersApplied: { userID, userName } },
   });
+
+  await sdk
+    .matches_create({
+      external_id: userID,
+      job: manatalID,
+      candidate: candidateID,
+    })
+    .then(({ data }) => console.log(data))
+    .catch((err) => console.error(err));
 });
 
 app.put("/declineJob", async (req, res) => {
@@ -1185,37 +1407,19 @@ app.put("/verifyUserForJob", async (req, res) => {
   res.json({ valid: true });
 });
 
-app.put("/unhire", async (req, res) => {
-  const employmentID = req.body.jobID;
-
+app.put("/acceptUnhire", async (req, res) => {
   try {
-    await EmploymentModel.findByIdAndUpdate(employmentID, {
-      employmentStatus: "Unhire Requested",
+    const beehub = await UnhireModel.findOneAndDelete({
+      _id: req.body.unhireID,
     });
-    res.json("Request sent");
-  } catch (error) {
-    res.json("Request failed");
-  }
-});
 
-app.put("/adminUnhire", async (req, res) => {
-  const employmentID = req.body.id;
-  const action = req.body.action;
-
-  try {
-    if (action === "Active") {
-      await EmploymentModel.findByIdAndUpdate(employmentID, {
-        employmentStatus: action,
-      });
-    } else {
-      await EmploymentModel.findByIdAndUpdate(employmentID, {
-        employmentStatus: action,
-        dateEnded: new Date(),
-      });
-    }
-    res.json({ valid: true });
+    await sdk.matches_partial_update(
+      { is_active: false },
+      { id: parseInt(beehub.matchID) }
+    );
+    res.json("Success");
   } catch (error) {
-    res.json("Request failed");
+    console.log(error);
   }
 });
 
@@ -1234,20 +1438,40 @@ app.delete("/deleteCertificate", async (req, res) => {
   }
 });
 
+app.delete("/deleteUnhire", async (req, res) => {
+  console.log(req.body.unhireID);
+  await UnhireModel.deleteOne({ _id: req.body.unhireID })
+    .then(() => {
+      res.json("Success");
+    })
+    .catch((err) => res.json(err));
+});
+
+//test
+
 //DEADLINE SCHEDULER
 cron.schedule("0 * * * *", async () => {
   console.log("your time has come");
-  const now = new Date();
-  const expiredJobs = await JobBoardModel.find({
-    jobDeadline: { $lt: now },
-    jobVerified: { $ne: "Expired" },
-  });
+  try {
+    const now = new Date();
+    const expiredJobs = await JobBoardModel.find({
+      jobDeadline: { $lt: now },
+      jobVerified: { $ne: "Expired" },
+    });
 
-  expiredJobs.forEach(async (job) => {
-    if (new Date(job.jobDeadline) < now) {
-      await JobBoardModel.findByIdAndUpdate(job._id, {
-        jobVerified: "Expired",
-      });
-    }
-  });
+    expiredJobs.forEach(async (job) => {
+      if (new Date(job.jobDeadline) < now) {
+        const beehub = await JobBoardModel.findByIdAndUpdate(job._id, {
+          jobVerified: "Expired",
+        });
+
+        await sdk.jobs_partial_update(
+          { status: "won" },
+          { id: parseInt(beehub.jobManatalID) }
+        );
+      }
+    });
+  } catch (error) {
+    console.log(error);
+  }
 });

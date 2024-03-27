@@ -1,9 +1,14 @@
 const mongoose = require("mongoose");
 
 const JobBoardsSchema = new mongoose.Schema({
+  jobManatalID: String,
   jobTitle: String,
   jobSummary: String,
-  jobSalary: String,
+  jobHeadcount: String,
+  jobCurrency: String,
+  jobMinSalary: String,
+  jobMaxSalary: String,
+  jobLocation: String,
   jobEmploymentType: String,
   jobLevelExperience: String,
   jobHours: String,
